@@ -1,2 +1,13 @@
 .DS_Store
 Break_Enforcer_交接文档.md
+
+# Eric 存的 Stripe live secret key 截图，绝对不能进 git
+Stripe secret key break enforcer.*
+
+# 实测工具。仓库是 public 的，live secret key 绝对不能进 git。
+node_modules/
+.env
+.env.*
+!.env.example
+experiments/hold-test/runs/state.*.json
+experiments/hold-test/runs/report.*.md

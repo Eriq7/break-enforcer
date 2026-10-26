@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Break Enforcer 授权实测</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://js.stripe.com/v3/"></script>
+</head>
+<body>
+
+<header>
+  <h1>小额授权实测</h1>
+  <span id="mode-badge" class="badge">读取中</span>
+</header>
+
+<p class="lede">
+  第 7 步。回答两件事：被罚之后钱多快回来，惩罚撑不撑得满 5 天。
+  顺带验证主应用最依赖的那一条：人不在页面上时，off-session 授权压不压得动。
+</p>
+
+<section class="card" id="step-card">
+  <h2>1　存卡</h2>
+  <p class="hint">
+    SetupIntent，<strong>金额 $0，卡上零动静</strong>。只是把卡存下来，好让后面两个实验用 off-session 压款，
+    跟主应用真实的存卡流程一模一样。
+  </p>
+  <div id="saved-card" class="saved hidden"></div>
+  <div id="card-form">
+    <div id="payment-element"></div>
+    <button id="save-card-btn" class="primary" disabled>存这张卡</button>
+    <div id="card-msg" class="msg"></div>
+  </div>
+  <p class="hint hidden" id="resave-line"><a href="#" id="resave">换一张卡</a></p>
+</section>
+
+<section class="card" id="exp1-card">
+  <h2>2　实验 1：压 $1，立刻 void</h2>
+  <p class="hint">量的是最快能多快回来。点一下，脚本压一笔授权然后马上撤销，两个动作之间不到一秒。</p>
+  <button id="exp1-btn" class="primary" disabled>压 $1 然后立刻 void</button>
+  <div id="exp1-msg" class="msg"></div>
+</section>
+
+<section class="card" id="exp2-card">
+  <h2>3　实验 2：压 $1.25，放满 <span id="hold-hours">120</span> 小时</h2>
+  <p class="hint">
+    量的是惩罚撑不撑得住 5 天。压上之后<strong>不要关这个页面也没关系</strong>，
+    服务器关掉不影响已经压住的授权，到点了重新 <code>npm start</code> 打开这一页点 void 就行。
+  </p>
+  <button id="exp2-btn" class="primary" disabled>压 $1.25 并挂住</button>
+  <div id="exp2-msg" class="msg"></div>
+</section>
+
+<section class="card">
+  <h2>4　记录</h2>
+  <p class="hint">
+    脚本看不见你的银行账户，只有你能看见。所以 pending 什么时候出现、什么时候消失，
+    <strong>你在 RBC App 里看到的那一刻，回来点一下对应的按钮</strong>，时间戳才准。
+  </p>
+  <div id="runs"></div>
+  <div class="row">
+    <button id="refresh-btn">回 Stripe 刷新状态</button>
+    <button id="report-btn">导出结论</button>
+  </div>
+  <pre id="report" class="hidden"></pre>
+</section>
+
+<footer>
+  金额写死：实验 1 $1.00，实验 2 $1.25（CAD），改不了。两笔金额不同，在 RBC App 里就分得清。实验只用 authorization 和 void，<strong>永远不 capture</strong>，所以钱不会真的被扣走。
+  就算你忘了 void，授权一般 7 天自己过期。
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
