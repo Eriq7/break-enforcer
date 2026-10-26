@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E0E0F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Break Enforcer">
+<title>Break Enforcer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
+<script defer src="config.js"></script>
+<script defer src="app.js"></script>
+</head>
+<body>
+<main class="shell">
+  <header class="bar">
+    <span class="brand">BREAK<b>ENFORCER</b></span>
+    <button class="link" id="logout" type="button" hidden>退出</button>
+  </header>
+
+  <section id="screen-loading" class="screen">
+    <p class="dim mono" id="loading-msg">载入中…</p>
+    <button class="secondary" id="retry" type="button" hidden>重试</button>
+  </section>
+
+  <section id="screen-auth" class="screen" hidden>
+    <h1 class="display">到点就停。</h1>
+    <div class="tabs" role="tablist">
+      <button type="button" data-mode="login" class="on">登录</button>
+      <button type="button" data-mode="signup">注册</button>
+    </div>
+    <form id="auth-form" novalidate>
+      <label>邮箱<input type="email" id="auth-email" autocomplete="email" inputmode="email" required></label>
+      <label>密码<input type="password" id="auth-password" autocomplete="current-password" minlength="6" required></label>
+      <button class="primary" type="submit" id="auth-submit">登录</button>
+    </form>
+    <form id="code-form" hidden>
+      <p>验证码发到了 <b id="code-email"></b>，收件箱里找一下。</p>
+      <label>验证码<input id="code-input" inputmode="numeric" autocomplete="one-time-code" required></label>
+      <button class="primary" type="submit">确认</button>
+      <div class="row spread">
+        <button class="link" type="button" id="code-resend">重发验证码</button>
+        <button class="link" type="button" id="code-back">换个邮箱</button>
+      </div>
+    </form>
+    <p class="msg" id="auth-msg" role="status"></p>
+  </section>
+
+  <section id="screen-home" class="screen" hidden>
+    <div class="readout" id="last" hidden>
+      <span class="label">上一轮</span>
+      <div class="big-status" id="last-status"></div>
+      <p class="detail" id="last-detail"></p>
+    </div>
+
+    <button class="primary big" id="start" type="button">开始放松</button>
+    <p class="hint" id="start-hint"></p>
+    <p class="msg" id="home-msg" role="status"></p>
+
+    <span class="label">7 楼参考照</span>
+    <p class="hint">打卡时 AI 拿现拍的照片跟这些比。白天和晚上光线差很多，哪个时段误判了就补一张那个时段的。放松进行中不能改。</p>
+    <div class="refs" id="refs"></div>
+    <div class="row">
+      <button class="secondary" id="ref-camera" type="button">现场拍一张</button>
+      <label class="secondary file">从相册选<input type="file" id="ref-file" accept="image/*" hidden></label>
+    </div>
+
+    <span class="label">最近</span>
+    <ol class="history" id="history"></ol>
+  </section>
+
+  <section id="screen-session" class="screen" hidden>
+    <span class="label" id="phase-label">放松中</span>
+    <div class="timer" id="timer">--:--</div>
+    <p class="sub mono" id="timer-sub"></p>
+    <button class="primary big alarm" id="arrived" type="button">我到了 · 开相机</button>
+    <div class="session-refs" id="session-refs" hidden>
+      <span class="label">要拍成这样</span>
+      <div class="session-refs-row" id="session-refs-row"></div>
+    </div>
+    <div class="result" id="attempt-result" hidden>
+      <span class="label" id="attempt-title"></span>
+      <p id="attempt-reason"></p>
+    </div>
+    <p class="msg" id="session-msg" role="status"></p>
+    <ol class="attempts" id="attempts"></ol>
+  </section>
+</main>
+
+<section id="screen-camera" class="camera" hidden>
+  <div class="viewfinder">
+    <video id="video" playsinline muted autoplay></video>
+    <img id="ghost" class="ghost" alt="" hidden>
+    <img id="still" alt="刚拍的照片" hidden>
+    <div class="cam-refs" id="cam-refs" hidden>
+      <span>参考照 · 点一下叠在画面上对齐</span>
+      <div class="cam-refs-row" id="cam-refs-row"></div>
+    </div>
+  </div>
+  <p class="cam-msg" id="cam-msg"></p>
+  <div class="camera-bar">
+    <button class="secondary" id="cam-cancel" type="button">取消</button>
+    <button class="shutter" id="cam-shoot" type="button" aria-label="拍照"></button>
+    <span id="cam-spacer"></span>
+    <button class="secondary" id="cam-retake" type="button" hidden>重拍</button>
+    <button class="primary" id="cam-use" type="button" hidden>用这张</button>
+  </div>
+</section>
+
+<div class="peek" id="peek" hidden><img id="peek-img" alt="参考照"></div>
+</body>
+</html>
