@@ -17,8 +17,8 @@ test('route sends the handler result as JSON', async () => {
 
 test('route passes HttpError messages through and hides other errors', async () => {
   const known = fakeRes();
-  await route(['POST'], async () => { throw new HttpError(409, 'already_active', '已经有一轮在进行了'); })({ method: 'POST' }, known);
-  assert.deepEqual([known.statusCode, known.body.error, known.body.message], [409, 'already_active', '已经有一轮在进行了']);
+  await route(['POST'], async () => { throw new HttpError(409, 'already_active', 'A break is already running'); })({ method: 'POST' }, known);
+  assert.deepEqual([known.statusCode, known.body.error, known.body.message], [409, 'already_active', 'A break is already running']);
 
   const unknown = fakeRes();
   const log = console.error;
@@ -37,7 +37,7 @@ test('route rejects other methods', async () => {
 
 test('decodeJpeg accepts JPEG and refuses anything else', () => {
   assert.equal(decodeJpeg(Buffer.from([0xff, 0xd8, 0xff, 0xe0]).toString('base64')).length, 4);
-  assert.throws(() => decodeJpeg(Buffer.from('<svg/>').toString('base64')), /格式/);
-  assert.throws(() => decodeJpeg(''), /没收到/);
-  assert.throws(() => decodeJpeg(undefined), /没收到/);
+  assert.throws(() => decodeJpeg(Buffer.from('<svg/>').toString('base64')), /JPEG/);
+  assert.throws(() => decodeJpeg(''), /No photo/);
+  assert.throws(() => decodeJpeg(undefined), /No photo/);
 });

@@ -109,8 +109,8 @@ function notFound(res) {
 server.listen(PORT, HOST, () => {
   const missing = ['SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'OPENAI_API_KEY'].filter((k) => !process.env[k]);
   console.log(`Break Enforcer dev server: http://${HOST}:${PORT}/app/`);
-  if (missing.length) console.log(`  .env 里还空着：${missing.join(', ')}`);
+  if (missing.length) console.log(`  Still empty in .env: ${missing.join(', ')}`);
   if (process.env.TEST_RELAX_SECONDS || process.env.TEST_BUFFER_SECONDS) {
-    console.log(`  测试用短时长：放松 ${process.env.TEST_RELAX_SECONDS || '默认'} 秒，buffer ${process.env.TEST_BUFFER_SECONDS || '默认'} 秒`);
+    console.log(`  Test durations: relax ${process.env.TEST_RELAX_SECONDS || 'default'} s, buffer ${process.env.TEST_BUFFER_SECONDS || 'default'} s`);
   }
 });

@@ -1,7 +1,7 @@
 {
   "name": "Break Enforcer",
   "short_name": "Break Enforcer",
-  "lang": "zh-CN",
+  "lang": "en",
   "start_url": "/app/",
   "scope": "/app/",
   "display": "standalone",

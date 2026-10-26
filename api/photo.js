@@ -10,7 +10,7 @@ import { isUuid } from '../lib/ids.js';
 export default route(['POST'], async (req) => {
   const user = await requireUser(req);
   const { session_id: sessionId, image } = req.body || {};
-  if (!isUuid(sessionId)) throw new HttpError(400, 'bad_request', '缺少这一轮的编号');
+  if (!isUuid(sessionId)) throw new HttpError(400, 'bad_request', 'Missing break id');
   const photo = decodeJpeg(image);
   const path = attemptPath(user.id, sessionId);
 
@@ -30,7 +30,7 @@ export default route(['POST'], async (req) => {
     console.error('photo check failed:', e.message);
     result = {
       verdict: 'error',
-      reason: e instanceof HttpError ? e.message : 'AI 判定出错了，直接重拍一张',
+      reason: e instanceof HttpError ? e.message : 'The AI check failed. Just retake the photo.',
       model: null,
       raw: null,
     };

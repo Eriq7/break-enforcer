@@ -21,7 +21,7 @@ const good = {
   place_score: 2,
   viewpoint_score: 2,
   screen_or_print: false,
-  reason_zh: '好',
+  reason: 'ok',
 };
 
 test('a clear photo of the same place from the same direction passes', () => {
@@ -54,12 +54,12 @@ test('compare calls the API with the key and returns the verdict', async () => {
   let sent;
   const fetchImpl = async (url, init) => {
     sent = { url, init };
-    return { ok: true, status: 200, json: async () => answer({ ...good, reason_zh: '是同一个地方' }) };
+    return { ok: true, status: 200, json: async () => answer({ ...good, reason: 'Same place' }) };
   };
   const r = await compare([jpeg(1)], jpeg(2), { fetchImpl });
   assert.equal(sent.url, 'https://api.openai.com/v1/chat/completions');
   assert.equal(sent.init.headers.authorization, 'Bearer test-key');
-  assert.deepEqual([r.verdict, r.reason, r.model], ['pass', '是同一个地方', 'gpt-test']);
+  assert.deepEqual([r.verdict, r.reason, r.model], ['pass', 'Same place', 'gpt-test']);
 });
 
 test('a rejected key says which setting to fix', async () => {
@@ -71,7 +71,7 @@ test('a rejected key says which setting to fix', async () => {
 test('an API account with no credit says so', async () => {
   process.env.OPENAI_API_KEY = 'k';
   const fetchImpl = async () => ({ ok: false, status: 429, json: async () => ({ error: { code: 'insufficient_quota' } }) });
-  await assert.rejects(compare([jpeg(1)], jpeg(2), { fetchImpl }), /余额/);
+  await assert.rejects(compare([jpeg(1)], jpeg(2), { fetchImpl }), /out of credit/);
 });
 
 test('missing key is reported by name', async () => {

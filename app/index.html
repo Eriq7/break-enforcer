@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -23,43 +23,43 @@
 <main class="shell">
   <header class="bar">
     <span class="brand">BREAK<b>ENFORCER</b></span>
-    <button class="link" id="logout" type="button" hidden>退出</button>
+    <button class="link" id="logout" type="button" hidden>Log out</button>
   </header>
 
   <section id="screen-loading" class="screen">
-    <p class="dim mono" id="loading-msg">载入中…</p>
-    <button class="secondary" id="retry" type="button" hidden>重试</button>
+    <p class="dim mono" id="loading-msg">Loading…</p>
+    <button class="secondary" id="retry" type="button" hidden>Try again</button>
   </section>
 
   <section id="screen-auth" class="screen" hidden>
-    <h1 class="display">到点就停。</h1>
+    <h1 class="display">Stop on time.</h1>
     <div class="tabs" role="tablist">
-      <button type="button" data-mode="login" class="on">登录</button>
-      <button type="button" data-mode="signup">注册</button>
+      <button type="button" data-mode="login" class="on">Log in</button>
+      <button type="button" data-mode="signup">Sign up</button>
     </div>
     <form id="auth-form" novalidate>
-      <label>邮箱<input type="email" id="auth-email" autocomplete="email" inputmode="email" required></label>
-      <label>密码<input type="password" id="auth-password" autocomplete="current-password" minlength="6" required></label>
-      <button class="primary" type="submit" id="auth-submit">登录</button>
-      <button class="link" type="button" id="forgot">忘记密码</button>
+      <label>Email<input type="email" id="auth-email" autocomplete="email" inputmode="email" required></label>
+      <label>Password<input type="password" id="auth-password" autocomplete="current-password" minlength="6" required></label>
+      <button class="primary" type="submit" id="auth-submit">Log in</button>
+      <button class="link" type="button" id="forgot">Forgot password?</button>
     </form>
     <form id="code-form" hidden>
-      <p>验证码发到了 <b id="code-email"></b>，收件箱里找一下。</p>
-      <label>验证码<input id="code-input" inputmode="numeric" autocomplete="one-time-code" required></label>
-      <button class="primary" type="submit">确认</button>
+      <p>We sent a code to <b id="code-email"></b>. Check your inbox.</p>
+      <label>Code<input id="code-input" inputmode="numeric" autocomplete="one-time-code" required></label>
+      <button class="primary" type="submit">Confirm</button>
       <div class="row spread">
-        <button class="link" type="button" id="code-resend">重发验证码</button>
-        <button class="link" type="button" id="code-back">换个邮箱</button>
+        <button class="link" type="button" id="code-resend">Resend code</button>
+        <button class="link" type="button" id="code-back">Use a different email</button>
       </div>
     </form>
     <form id="reset-form" hidden>
-      <p>重置密码的验证码发到了 <b id="reset-email"></b>，收件箱里找一下。</p>
-      <label>验证码<input id="reset-code" inputmode="numeric" autocomplete="one-time-code" required></label>
-      <label>新密码<input type="password" id="reset-password" autocomplete="new-password" minlength="6" required></label>
-      <button class="primary" type="submit">设好新密码，登录</button>
+      <p>We sent a password reset code to <b id="reset-email"></b>. Check your inbox.</p>
+      <label>Code<input id="reset-code" inputmode="numeric" autocomplete="one-time-code" required></label>
+      <label>New password<input type="password" id="reset-password" autocomplete="new-password" minlength="6" required></label>
+      <button class="primary" type="submit">Set new password and log in</button>
       <div class="row spread">
-        <button class="link" type="button" id="reset-resend">重发验证码</button>
-        <button class="link" type="button" id="reset-back">返回登录</button>
+        <button class="link" type="button" id="reset-resend">Resend code</button>
+        <button class="link" type="button" id="reset-back">Back to log in</button>
       </div>
     </form>
     <p class="msg" id="auth-msg" role="status"></p>
@@ -67,34 +67,34 @@
 
   <section id="screen-home" class="screen" hidden>
     <div class="readout" id="last" hidden>
-      <span class="label">上一轮</span>
+      <span class="label">Last break</span>
       <div class="big-status" id="last-status"></div>
       <p class="detail" id="last-detail"></p>
     </div>
 
-    <button class="primary big" id="start" type="button">开始放松</button>
+    <button class="primary big" id="start" type="button">Start break</button>
     <p class="hint" id="start-hint"></p>
     <p class="msg" id="home-msg" role="status"></p>
 
-    <span class="label">7 楼参考照</span>
-    <p class="hint">打卡时 AI 拿现拍的照片跟这些比。白天和晚上光线差很多，哪个时段误判了就补一张那个时段的。放松进行中不能改。</p>
+    <span class="label">Check-in spot photos</span>
+    <p class="hint">When you check in, the AI compares your new photo with these. Light changes a lot between day and night, so if it gets one wrong, add a photo from that time of day. Locked while a break is running.</p>
     <div class="refs" id="refs"></div>
     <div class="row">
-      <button class="secondary" id="ref-camera" type="button">现场拍一张</button>
-      <label class="secondary file">从相册选<input type="file" id="ref-file" accept="image/*" hidden></label>
+      <button class="secondary" id="ref-camera" type="button">Take a photo</button>
+      <label class="secondary file">Choose from library<input type="file" id="ref-file" accept="image/*" hidden></label>
     </div>
 
-    <span class="label">最近</span>
+    <span class="label">Recent</span>
     <ol class="history" id="history"></ol>
   </section>
 
   <section id="screen-session" class="screen" hidden>
-    <span class="label" id="phase-label">放松中</span>
+    <span class="label" id="phase-label">On break</span>
     <div class="timer" id="timer">--:--</div>
     <p class="sub mono" id="timer-sub"></p>
-    <button class="primary big alarm" id="arrived" type="button">我到了 · 开相机</button>
+    <button class="primary big alarm" id="arrived" type="button">I'm here · Open camera</button>
     <div class="session-refs" id="session-refs" hidden>
-      <span class="label">要拍成这样</span>
+      <span class="label">Match this shot</span>
       <div class="session-refs-row" id="session-refs-row"></div>
     </div>
     <div class="result" id="attempt-result" hidden>
@@ -110,22 +110,22 @@
   <div class="viewfinder">
     <video id="video" playsinline muted autoplay></video>
     <img id="ghost" class="ghost" alt="" hidden>
-    <img id="still" alt="刚拍的照片" hidden>
+    <img id="still" alt="The photo you just took" hidden>
     <div class="cam-refs" id="cam-refs" hidden>
-      <span>参考照 · 点一下叠在画面上对齐</span>
+      <span>Reference · tap to overlay and line up</span>
       <div class="cam-refs-row" id="cam-refs-row"></div>
     </div>
   </div>
   <p class="cam-msg" id="cam-msg"></p>
   <div class="camera-bar">
-    <button class="secondary" id="cam-cancel" type="button">取消</button>
-    <button class="shutter" id="cam-shoot" type="button" aria-label="拍照"></button>
+    <button class="secondary" id="cam-cancel" type="button">Cancel</button>
+    <button class="shutter" id="cam-shoot" type="button" aria-label="Take photo"></button>
     <span id="cam-spacer"></span>
-    <button class="secondary" id="cam-retake" type="button" hidden>重拍</button>
-    <button class="primary" id="cam-use" type="button" hidden>用这张</button>
+    <button class="secondary" id="cam-retake" type="button" hidden>Retake</button>
+    <button class="primary" id="cam-use" type="button" hidden>Use this one</button>
   </div>
 </section>
 
-<div class="peek" id="peek" hidden><img id="peek-img" alt="参考照"></div>
+<div class="peek" id="peek" hidden><img id="peek-img" alt="Reference photo"></div>
 </body>
 </html>

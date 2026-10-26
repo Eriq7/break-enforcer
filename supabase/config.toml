@@ -249,11 +249,11 @@ otp_expiry = 3600
 
 # Codes, not links: a link opens Safari and the sign-in never reaches the home screen app.
 [auth.email.template.confirmation]
-subject = "Break Enforcer 注册验证码"
+subject = "Your Break Enforcer sign-up code"
 content_path = "./supabase/templates/confirmation.html"
 
 [auth.email.template.recovery]
-subject = "Break Enforcer 重置密码验证码"
+subject = "Your Break Enforcer password reset code"
 content_path = "./supabase/templates/recovery.html"
 
 # Uncomment to customize email template

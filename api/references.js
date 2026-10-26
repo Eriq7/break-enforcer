@@ -22,7 +22,7 @@ export default route(['POST', 'DELETE'], async (req) => {
   }
 
   const id = queryParam(req, 'id');
-  if (!isUuid(id)) throw new HttpError(400, 'bad_request', '缺少照片编号');
+  if (!isUuid(id)) throw new HttpError(400, 'bad_request', 'Missing photo id');
   const path = await rpc('be_delete_reference', { p_user_id: user.id, p_reference_id: id });
   await remove(path).catch((e) => console.error('left a file behind:', path, e.message));
   return { ok: true };

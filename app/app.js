@@ -25,23 +25,23 @@
   }
 
   function offline() {
-    const e = new Error('网络断了，连不上服务器');
+    const e = new Error("You're offline. Can't reach the server.");
     e.code = 'offline';
     return e;
   }
 
   const AUTH_MESSAGES = {
-    invalid_credentials: '邮箱或密码不对',
-    email_not_confirmed: '邮箱还没验证',
-    user_already_exists: '这个邮箱已经注册过了，直接登录',
-    weak_password: '密码太简单了，至少 6 位',
-    over_email_send_rate_limit: '发得太频繁了，等一分钟再试',
-    over_request_rate_limit: '试得太频繁了，等一会儿再试',
-    otp_expired: '验证码不对，或者过期了',
-    validation_failed: '邮箱格式不对',
-    email_address_invalid: '邮箱格式不对',
-    signup_disabled: '现在不开放注册',
-    same_password: '新密码不能跟旧密码一样',
+    invalid_credentials: 'Wrong email or password',
+    email_not_confirmed: 'Your email is not verified yet',
+    user_already_exists: 'This email is already registered. Log in instead.',
+    weak_password: 'Password is too weak. Use at least 6 characters.',
+    over_email_send_rate_limit: 'Too many emails. Wait a minute and try again.',
+    over_request_rate_limit: 'Too many tries. Wait a moment and try again.',
+    otp_expired: 'That code is wrong or has expired',
+    validation_failed: "That email address doesn't look right",
+    email_address_invalid: "That email address doesn't look right",
+    signup_disabled: 'Sign-ups are closed right now',
+    same_password: 'The new password must be different from the old one',
   };
 
   // supabase-js returns { data, error } instead of throwing.
@@ -69,7 +69,7 @@
 
     async api(method, path, body) {
       const token = await cloud.token();
-      if (!token) throw Object.assign(new Error('请先登录'), { status: 401 });
+      if (!token) throw Object.assign(new Error('Please log in first'), { status: 401 });
       let res;
       try {
         res = await fetch('/api/' + path, {
@@ -84,7 +84,7 @@
       }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw Object.assign(new Error(data.message || `出错了（${res.status}）`), { status: res.status, code: data.error });
+        throw Object.assign(new Error(data.message || `Something went wrong (${res.status})`), { status: res.status, code: data.error });
       }
       return data;
     },
@@ -179,12 +179,12 @@
     return node;
   }
 
-  const VERDICT_TEXT = { pass: '通过', fail: '没通过', error: '判定出错', pending: '判定中' };
+  const VERDICT_TEXT = { pass: 'Passed', fail: 'Failed', error: 'Check error', pending: 'Checking' };
 
   function sessionTag(s) {
-    if (s.status === 'passed') return ['通过', 'tag-pass'];
-    if (s.status === 'active') return ['进行中', ''];
-    return [s.fail_reason === 'no_pass' ? '照片没通过' : '没交照片', 'tag-fail'];
+    if (s.status === 'passed') return ['Passed', 'tag-pass'];
+    if (s.status === 'active') return ['In progress', ''];
+    return [s.fail_reason === 'no_pass' ? 'Photo failed' : 'No photo', 'tag-fail'];
   }
 
   // ---------- home ----------
@@ -194,18 +194,18 @@
     $('last').hidden = !latest;
     if (latest) {
       const passed = latest.status === 'passed';
-      $('last-status').textContent = passed ? '通过 ✓' : '失败';
+      $('last-status').textContent = passed ? 'Passed ✓' : 'Failed';
       $('last-status').className = 'big-status ' + (passed ? 'pass' : 'fail');
       const lastAttempt = state.attempts[state.attempts.length - 1];
       let detail;
       if (passed) {
-        detail = `第一张照片 ${clock(latest.first_photo_at, true)} 交的，截止是 ${clock(latest.deadline_at, true)}。`;
+        detail = `First photo at ${clock(latest.first_photo_at, true)}. The deadline was ${clock(latest.deadline_at, true)}.`;
       } else if (latest.fail_reason === 'no_photo') {
-        detail = `${clock(latest.deadline_at, true)} 前没交照片。`;
+        detail = `No photo before ${clock(latest.deadline_at, true)}.`;
       } else {
-        detail = '照片都没通过比对。' + (lastAttempt?.reason ? `最后一张：${lastAttempt.reason}` : '');
+        detail = 'No photo passed the check.' + (lastAttempt?.reason ? ` Last one: ${lastAttempt.reason}` : '');
       }
-      if (!passed) detail += ' 扣款还没接上，这一轮不扣钱。';
+      if (!passed) detail += " Payments aren't connected yet, so nothing was charged.";
       $('last-detail').textContent = detail;
     }
 
@@ -213,16 +213,16 @@
     const hasRefs = state.references.length > 0;
     $('start').disabled = !hasRefs;
     $('start-hint').textContent = hasRefs
-      ? `点了就不能取消。${mmss(state.timing.relax * 1000)} 后开始倒数 ${mmss(state.timing.buffer * 1000)}，这期间到 7 楼交第一张照片。`
-      : '先在下面存一张 7 楼参考照，才能开始。';
+      ? `Once started, it can't be cancelled. After ${mmss(state.timing.relax * 1000)}, you get ${mmss(state.timing.buffer * 1000)} to take your first photo at the check-in spot.`
+      : 'Save a check-in spot photo below before you start.';
 
     const refs = $('refs');
     refs.replaceChildren();
-    if (!hasRefs) refs.append(el('div', { className: 'refs-empty', textContent: '还没有参考照' }));
+    if (!hasRefs) refs.append(el('div', { className: 'refs-empty', textContent: 'No check-in spot photos yet' }));
     for (const r of state.references) {
-      const del = el('button', { type: 'button', textContent: '删除' });
+      const del = el('button', { type: 'button', textContent: 'Delete' });
       del.onclick = () => deleteReference(r.id, del);
-      refs.append(el('div', { className: 'ref' }, el('img', { src: r.url || '', alt: '参考照', loading: 'lazy' }), del));
+      refs.append(el('div', { className: 'ref' }, el('img', { src: r.url || '', alt: 'Reference photo', loading: 'lazy' }), del));
     }
     const full = state.references.length >= 6;
     $('ref-camera').disabled = full;
@@ -230,7 +230,7 @@
 
     const history = $('history');
     history.replaceChildren();
-    if (state.history.length === 0) history.append(el('li', {}, el('span', { className: 'dim', textContent: '还没有记录' })));
+    if (state.history.length === 0) history.append(el('li', {}, el('span', { className: 'dim', textContent: 'Nothing yet' })));
     for (const s of state.history) {
       const [text, cls] = sessionTag(s);
       history.append(el('li', {}, el('span', { className: 'when', textContent: day(s.started_at) }), el('span', { className: cls, textContent: text })));
@@ -238,7 +238,7 @@
   }
 
   function renderStartLabel() {
-    $('start').textContent = '开始放松 ' + mmss((state?.timing.relax ?? 2725) * 1000);
+    $('start').textContent = 'Start break ' + mmss((state?.timing.relax ?? 2725) * 1000);
   }
 
   // Two taps to start: an accidental tap would lock in a 50 minute session.
@@ -246,7 +246,7 @@
   $('start').onclick = async () => {
     if (Date.now() - startArmedAt > 4000) {
       startArmedAt = Date.now();
-      $('start').textContent = '确定开始？再点一次';
+      $('start').textContent = 'Sure? Tap again to start';
       setTimeout(() => {
         if (startArmedAt && Date.now() - startArmedAt >= 4000) renderStartLabel();
       }, 4100);
@@ -269,10 +269,10 @@
   async function deleteReference(id, button) {
     if (!button.classList.contains('armed')) {
       button.classList.add('armed');
-      button.textContent = '确定删？';
+      button.textContent = 'Delete?';
       setTimeout(() => {
         button.classList.remove('armed');
-        button.textContent = '删除';
+        button.textContent = 'Delete';
       }, 3000);
       return;
     }
@@ -289,7 +289,7 @@
   async function saveReference(dataUrl) {
     await cloud.api('POST', 'references', { image: dataUrl.split(',')[1] });
     await refresh();
-    flash('home-msg', '参考照存好了', true);
+    flash('home-msg', 'Photo saved', true);
   }
 
   // Picking from the album is fine for the reference; check-ins only ever use the live camera.
@@ -297,7 +297,7 @@
     const file = ev.target.files[0];
     ev.target.value = '';
     if (!file) return;
-    flash('home-msg', '保存中…', true);
+    flash('home-msg', 'Saving…', true);
     try {
       await saveReference(await fileToJpeg(file));
     } catch (e) {
@@ -354,7 +354,7 @@
   function renderRefRow(row, onPick) {
     row.replaceChildren();
     for (const ref of state.references) {
-      const button = el('button', { type: 'button', title: '参考照' }, el('img', { src: ref.url || '', alt: '参考照' }));
+      const button = el('button', { type: 'button', title: 'Reference photo' }, el('img', { src: ref.url || '', alt: 'Reference photo' }));
       button.onclick = () => onPick(ref, button);
       row.append(button);
     }
@@ -379,25 +379,25 @@
 
     if (s.first_photo_at) {
       left = Date.parse(s.retake_until) - now;
-      label = '已停表';
+      label = 'Clock stopped';
       mode = 'stopped';
-      sub = left > 0 ? '照片已经交了。判错了可以重拍，重拍不算时间。' : '重拍时间到了，等服务器收尾。';
-      arrived.textContent = '重拍一张';
+      sub = left > 0 ? "Photo submitted. If the AI got it wrong, retake it. Retakes don't count against you." : 'Retake time is over. Wrapping up…';
+      arrived.textContent = 'Retake';
       arrived.hidden = left <= 0;
     } else if (now < relaxEnd) {
       left = relaxEnd - now;
-      label = '放松中';
-      sub = `${clock(relaxEnd)} 到点 · ${clock(deadline, true)} 前交第一张照片`;
-      arrived.textContent = '我到了 · 开相机';
+      label = 'On break';
+      sub = `Break ends ${clock(relaxEnd)} · First photo due by ${clock(deadline, true)}`;
+      arrived.textContent = "I'm here · Open camera";
       arrived.hidden = false;
     } else {
       left = deadline - now;
-      label = '下楼拍照';
+      label = 'Go check in';
       mode = 'alarm';
-      sub = `${clock(deadline, true)} 前交第一张照片`;
-      arrived.textContent = '我到了 · 开相机';
+      sub = `First photo due by ${clock(deadline, true)}`;
+      arrived.textContent = "I'm here · Open camera";
       arrived.hidden = left <= 0;
-      if (left <= 0) sub = '过了截止时间，等服务器收尾。';
+      if (left <= 0) sub = 'Past the deadline. Wrapping up…';
     }
 
     $('phase-label').textContent = label;
@@ -432,10 +432,10 @@
     $('screen-camera').hidden = false;
     $('cam-msg').textContent =
       mode === 'checkin'
-        ? '拍成跟参考照一样的角度。点左下角的参考照，它会半透明叠在画面上，对齐了再拍'
-        : '拍 7 楼那个固定景观，别拍到人。挑有特色的角度：挂画、家具、招牌，光有白墙和百叶窗不行';
+        ? 'Match the angle of your reference photo. Tap one at the bottom left to lay it over the view, line it up, then shoot.'
+        : 'Shoot the fixed scene at your check-in spot, with no people in it. Pick a distinctive angle with art, furniture or signs. Plain walls and blinds are not enough.';
     if (!navigator.mediaDevices?.getUserMedia) {
-      $('cam-msg').textContent = '这个页面开不了摄像头，要用 https 地址打开';
+      $('cam-msg').textContent = "This page can't use the camera. Open it from an https address.";
       return;
     }
     try {
@@ -449,8 +449,8 @@
     } catch (e) {
       $('cam-msg').textContent =
         e.name === 'NotAllowedError'
-          ? '没有摄像头权限。iPhone 上：设置 → Safari → 相机，改成「允许」'
-          : '打不开摄像头：' + e.message;
+          ? 'No camera access. On iPhone: Settings → Safari → Camera → Allow.'
+          : "Can't open the camera: " + e.message;
     }
   }
 
@@ -502,7 +502,7 @@
   $('cam-use').onclick = async () => {
     camUi('busy');
     if (camMode === 'reference') {
-      $('cam-msg').textContent = '保存中…';
+      $('cam-msg').textContent = 'Saving…';
       try {
         await saveReference(shot);
         closeCamera();
@@ -513,7 +513,7 @@
       return;
     }
 
-    $('cam-msg').textContent = 'AI 判定中，几秒钟…';
+    $('cam-msg').textContent = 'The AI is checking. A few seconds…';
     try {
       const r = await cloud.api('POST', 'photo', { session_id: state.active.id, image: shot.split(',')[1] });
       syncClock(r.server_now);
@@ -552,7 +552,7 @@
       };
       img.onerror = () => {
         URL.revokeObjectURL(url);
-        reject(new Error('这张图打不开，换一张试试'));
+        reject(new Error("Can't open this image. Try another one."));
       };
       img.src = url;
     });
@@ -578,7 +578,7 @@
   function setAuthMode(mode) {
     authMode = mode;
     for (const b of document.querySelectorAll('.tabs button')) b.classList.toggle('on', b.dataset.mode === mode);
-    $('auth-submit').textContent = mode === 'login' ? '登录' : '注册';
+    $('auth-submit').textContent = mode === 'login' ? 'Log in' : 'Sign up';
     $('auth-password').autocomplete = mode === 'login' ? 'current-password' : 'new-password';
     $('forgot').hidden = mode !== 'login';
     flash('auth-msg', '');
@@ -595,7 +595,7 @@
   async function afterLogin() {
     $('auth-password').value = '';
     show('loading');
-    $('loading-msg').textContent = '载入中…';
+    $('loading-msg').textContent = 'Loading…';
     await refresh();
   }
 
@@ -605,8 +605,8 @@
     ev.preventDefault();
     const email = $('auth-email').value.trim();
     const password = $('auth-password').value;
-    if (!email || !password) return flash('auth-msg', '邮箱和密码都要填');
-    if (password.length < 6) return flash('auth-msg', '密码至少 6 位');
+    if (!email || !password) return flash('auth-msg', 'Enter your email and password');
+    if (password.length < 6) return flash('auth-msg', 'Password needs at least 6 characters');
     $('auth-submit').disabled = true;
     try {
       if (authMode === 'login') {
@@ -623,7 +623,7 @@
           // An already registered email comes back as a user with no identities, and no email is sent.
           if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
             setAuthMode('login');
-            return flash('auth-msg', '这个邮箱已经注册过了，直接登录');
+            return flash('auth-msg', 'This email is already registered. Log in instead.');
           }
           return showCode(email);
         }
@@ -649,7 +649,7 @@
   $('code-resend').onclick = async () => {
     try {
       await cloud.resendSignup(pendingEmail);
-      flash('auth-msg', '重发了', true);
+      flash('auth-msg', 'Sent again', true);
     } catch (e) {
       flash('auth-msg', e.message);
     }
@@ -669,7 +669,7 @@
 
   $('forgot').onclick = async () => {
     const email = $('auth-email').value.trim();
-    if (!email) return flash('auth-msg', '先在上面填邮箱');
+    if (!email) return flash('auth-msg', 'Enter your email above first');
     try {
       await cloud.sendReset(email);
       flash('auth-msg', '');
@@ -682,7 +682,7 @@
   $('reset-form').onsubmit = async (ev) => {
     ev.preventDefault();
     const password = $('reset-password').value;
-    if (password.length < 6) return flash('auth-msg', '新密码至少 6 位');
+    if (password.length < 6) return flash('auth-msg', 'New password needs at least 6 characters');
     try {
       // A code works once. If the new password was rejected after the code went through,
       // the user is already signed in, so only the password is retried.
@@ -698,7 +698,7 @@
   $('reset-resend').onclick = async () => {
     try {
       await cloud.sendReset(resetEmail);
-      flash('auth-msg', '重发了', true);
+      flash('auth-msg', 'Sent again', true);
     } catch (e) {
       flash('auth-msg', e.message);
     }
@@ -721,7 +721,7 @@
 
   $('retry').onclick = () => {
     $('retry').hidden = true;
-    $('loading-msg').textContent = '载入中…';
+    $('loading-msg').textContent = 'Loading…';
     boot();
   };
 
