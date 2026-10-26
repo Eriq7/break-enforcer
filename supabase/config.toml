@@ -224,9 +224,10 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-# Off for now: Eric is the only user, and code emails need a custom SMTP (Brevo) on the free tier.
-# Turn on before inviting anyone else; the app already handles the code step.
-enable_confirmations = false
+# Codes are sent through Brevo, set up in the dashboard (Authentication > Emails > SMTP Settings).
+# The free tier refuses template changes until that SMTP is on. The SMTP stays out of this file,
+# so `supabase config push` leaves the dashboard values alone.
+enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
@@ -245,6 +246,15 @@ otp_expiry = 3600
 # pass = "env(SENDGRID_API_KEY)"
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
+
+# Codes, not links: a link opens Safari and the sign-in never reaches the home screen app.
+[auth.email.template.confirmation]
+subject = "Break Enforcer 注册验证码"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Break Enforcer 重置密码验证码"
+content_path = "./supabase/templates/recovery.html"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]

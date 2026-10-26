@@ -41,6 +41,7 @@
     validation_failed: '邮箱格式不对',
     email_address_invalid: '邮箱格式不对',
     signup_disabled: '现在不开放注册',
+    same_password: '新密码不能跟旧密码一样',
   };
 
   // supabase-js returns { data, error } instead of throwing.
@@ -61,6 +62,9 @@
     signUp: async (email, password) => authResult(await supa().auth.signUp({ email, password })),
     verifySignup: async (email, token) => authResult(await supa().auth.verifyOtp({ email, token, type: 'email' })),
     resendSignup: async (email) => authResult(await supa().auth.resend({ type: 'signup', email })),
+    sendReset: async (email) => authResult(await supa().auth.resetPasswordForEmail(email)),
+    verifyReset: async (email, token) => authResult(await supa().auth.verifyOtp({ email, token, type: 'recovery' })),
+    setPassword: async (password) => authResult(await supa().auth.updateUser({ password })),
     signOut: async () => authResult(await supa().auth.signOut()),
 
     async api(method, path, body) {
@@ -558,6 +562,7 @@
 
   let authMode = 'login';
   let pendingEmail = '';
+  let resetEmail = '';
 
   function showAuth(message) {
     stopTicker();
@@ -566,6 +571,7 @@
     show('auth');
     $('auth-form').hidden = false;
     $('code-form').hidden = true;
+    $('reset-form').hidden = true;
     flash('auth-msg', message || '');
   }
 
@@ -574,6 +580,7 @@
     for (const b of document.querySelectorAll('.tabs button')) b.classList.toggle('on', b.dataset.mode === mode);
     $('auth-submit').textContent = mode === 'login' ? '登录' : '注册';
     $('auth-password').autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+    $('forgot').hidden = mode !== 'login';
     flash('auth-msg', '');
   }
 
@@ -649,6 +656,59 @@
   };
 
   $('code-back').onclick = () => showAuth();
+
+  // Forgot password: a code by email, then a new password. The code also signs the user in.
+  function showReset(email) {
+    resetEmail = email;
+    $('reset-email').textContent = email;
+    $('reset-code').value = '';
+    $('reset-password').value = '';
+    $('auth-form').hidden = true;
+    $('reset-form').hidden = false;
+  }
+
+  $('forgot').onclick = async () => {
+    const email = $('auth-email').value.trim();
+    if (!email) return flash('auth-msg', '先在上面填邮箱');
+    try {
+      await cloud.sendReset(email);
+      flash('auth-msg', '');
+      showReset(email);
+    } catch (e) {
+      flash('auth-msg', e.message);
+    }
+  };
+
+  $('reset-form').onsubmit = async (ev) => {
+    ev.preventDefault();
+    const password = $('reset-password').value;
+    if (password.length < 6) return flash('auth-msg', '新密码至少 6 位');
+    try {
+      // A code works once. If the new password was rejected after the code went through,
+      // the user is already signed in, so only the password is retried.
+      if (!(await cloud.token())) await cloud.verifyReset(resetEmail, $('reset-code').value.trim());
+      await cloud.setPassword(password);
+      $('reset-password').value = '';
+      await afterLogin();
+    } catch (e) {
+      flash('auth-msg', e.message);
+    }
+  };
+
+  $('reset-resend').onclick = async () => {
+    try {
+      await cloud.sendReset(resetEmail);
+      flash('auth-msg', '重发了', true);
+    } catch (e) {
+      flash('auth-msg', e.message);
+    }
+  };
+
+  $('reset-back').onclick = async () => {
+    // Leaving halfway after the code went through would otherwise keep that sign-in.
+    await cloud.signOut().catch(() => {});
+    showAuth();
+  };
 
   $('logout').onclick = async () => {
     try {

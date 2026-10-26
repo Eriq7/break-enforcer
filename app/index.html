@@ -41,6 +41,7 @@
       <label>邮箱<input type="email" id="auth-email" autocomplete="email" inputmode="email" required></label>
       <label>密码<input type="password" id="auth-password" autocomplete="current-password" minlength="6" required></label>
       <button class="primary" type="submit" id="auth-submit">登录</button>
+      <button class="link" type="button" id="forgot">忘记密码</button>
     </form>
     <form id="code-form" hidden>
       <p>验证码发到了 <b id="code-email"></b>，收件箱里找一下。</p>
@@ -49,6 +50,16 @@
       <div class="row spread">
         <button class="link" type="button" id="code-resend">重发验证码</button>
         <button class="link" type="button" id="code-back">换个邮箱</button>
+      </div>
+    </form>
+    <form id="reset-form" hidden>
+      <p>重置密码的验证码发到了 <b id="reset-email"></b>，收件箱里找一下。</p>
+      <label>验证码<input id="reset-code" inputmode="numeric" autocomplete="one-time-code" required></label>
+      <label>新密码<input type="password" id="reset-password" autocomplete="new-password" minlength="6" required></label>
+      <button class="primary" type="submit">设好新密码，登录</button>
+      <div class="row spread">
+        <button class="link" type="button" id="reset-resend">重发验证码</button>
+        <button class="link" type="button" id="reset-back">返回登录</button>
       </div>
     </form>
     <p class="msg" id="auth-msg" role="status"></p>
