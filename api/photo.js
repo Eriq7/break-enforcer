@@ -7,9 +7,6 @@ import { compare } from '../lib/vision.js';
 import { timing } from '../lib/config.js';
 import { isUuid } from '../lib/ids.js';
 
-// The AI call can take a while; Vercel's default limit is shorter on some plans.
-export const config = { maxDuration: 60 };
-
 export default route(['POST'], async (req) => {
   const user = await requireUser(req);
   const { session_id: sessionId, image } = req.body || {};

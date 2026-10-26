@@ -11,3 +11,7 @@ node_modules/
 !.env.example
 experiments/hold-test/runs/state.*.json
 experiments/hold-test/runs/report.*.md
+
+# What Vercel serves, built from landing/ and app/ by `npm run build`.
+public/
+.vercel

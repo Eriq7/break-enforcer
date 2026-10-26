@@ -40,6 +40,7 @@
     otp_expired: '验证码不对，或者过期了',
     validation_failed: '邮箱格式不对',
     email_address_invalid: '邮箱格式不对',
+    signup_disabled: '现在不开放注册',
   };
 
   // supabase-js returns { data, error } instead of throwing.
