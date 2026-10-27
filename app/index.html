@@ -3,17 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0E0E0F">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#000000">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Break Enforcer">
 <title>Break Enforcer</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230E0E0F'/%3E%3Crect x='6' y='14' width='20' height='4' fill='%23FF4A14'/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23000'/%3E%3Ccircle cx='16' cy='16' r='9.5' fill='none' stroke='%23333' stroke-width='3.2'/%3E%3Cpath d='M16 6.5a9.5 9.5 0 1 1 -9.5 9.5' fill='none' stroke='%23FF9F0A' stroke-width='3.2' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
 <script defer src="config.js"></script>
@@ -22,87 +21,133 @@
 <body>
 <main class="shell">
   <header class="bar">
-    <span class="brand">BREAK<b>ENFORCER</b></span>
-    <button class="link" id="logout" type="button" hidden>Log out</button>
+    <button class="text-btn" id="logout" type="button" hidden>Log out</button>
   </header>
 
-  <section id="screen-loading" class="screen">
-    <p class="dim mono" id="loading-msg">Loading…</p>
-    <button class="secondary" id="retry" type="button" hidden>Try again</button>
+  <section id="screen-loading" class="screen loading">
+    <span class="spinner" aria-hidden="true"></span>
+    <p class="loading-msg" id="loading-msg">Loading…</p>
+    <button class="btn btn-gray" id="retry" type="button" hidden>Try again</button>
   </section>
 
-  <section id="screen-auth" class="screen" hidden>
-    <h1 class="display">Stop on time.</h1>
-    <div class="tabs" role="tablist">
+  <section id="screen-auth" class="screen auth" hidden>
+    <div class="auth-head">
+      <img class="app-icon" src="icon-192.png" alt="" width="72" height="72">
+      <h1 class="auth-title">Break Enforcer</h1>
+      <p class="auth-sub">Stop on time.</p>
+    </div>
+
+    <div class="segmented" id="auth-tabs" data-mode="login" role="tablist">
       <button type="button" data-mode="login" class="on">Log in</button>
       <button type="button" data-mode="signup">Sign up</button>
     </div>
+
     <form id="auth-form" novalidate>
-      <label>Email<input type="email" id="auth-email" autocomplete="email" inputmode="email" required></label>
-      <label>Password<input type="password" id="auth-password" autocomplete="current-password" minlength="6" required></label>
-      <button class="primary" type="submit" id="auth-submit">Log in</button>
-      <button class="link" type="button" id="forgot">Forgot password?</button>
+      <div class="fields">
+        <input type="email" id="auth-email" placeholder="Email" aria-label="Email" autocomplete="email" inputmode="email" required>
+        <input type="password" id="auth-password" placeholder="Password" aria-label="Password" autocomplete="current-password" minlength="6" required>
+      </div>
+      <button class="btn btn-primary" type="submit" id="auth-submit">Log in</button>
+      <button class="text-btn centered" type="button" id="forgot">Forgot password?</button>
     </form>
+
     <form id="code-form" hidden>
-      <p>We sent a code to <b id="code-email"></b>. Check your inbox.</p>
-      <label>Code<input id="code-input" inputmode="numeric" autocomplete="one-time-code" required></label>
-      <button class="primary" type="submit">Confirm</button>
+      <p class="form-note">We sent a code to <b id="code-email"></b>. Check your inbox.</p>
+      <div class="fields">
+        <input class="otp" id="code-input" placeholder="Code" aria-label="Code" inputmode="numeric" autocomplete="one-time-code" required>
+      </div>
+      <button class="btn btn-primary" type="submit">Confirm</button>
       <div class="row spread">
-        <button class="link" type="button" id="code-resend">Resend code</button>
-        <button class="link" type="button" id="code-back">Use a different email</button>
+        <button class="text-btn" type="button" id="code-resend">Resend code</button>
+        <button class="text-btn" type="button" id="code-back">Use a different email</button>
       </div>
     </form>
+
     <form id="reset-form" hidden>
-      <p>We sent a password reset code to <b id="reset-email"></b>. Check your inbox.</p>
-      <label>Code<input id="reset-code" inputmode="numeric" autocomplete="one-time-code" required></label>
-      <label>New password<input type="password" id="reset-password" autocomplete="new-password" minlength="6" required></label>
-      <button class="primary" type="submit">Set new password and log in</button>
+      <p class="form-note">We sent a password reset code to <b id="reset-email"></b>. Check your inbox.</p>
+      <div class="fields">
+        <input class="otp" id="reset-code" placeholder="Code" aria-label="Code" inputmode="numeric" autocomplete="one-time-code" required>
+        <input type="password" id="reset-password" placeholder="New password" aria-label="New password" autocomplete="new-password" minlength="6" required>
+      </div>
+      <button class="btn btn-primary" type="submit">Set new password and log in</button>
       <div class="row spread">
-        <button class="link" type="button" id="reset-resend">Resend code</button>
-        <button class="link" type="button" id="reset-back">Back to log in</button>
+        <button class="text-btn" type="button" id="reset-resend">Resend code</button>
+        <button class="text-btn" type="button" id="reset-back">Back to log in</button>
       </div>
     </form>
+
     <p class="msg" id="auth-msg" role="status"></p>
   </section>
 
   <section id="screen-home" class="screen" hidden>
-    <div class="readout" id="last" hidden>
-      <span class="label">Last break</span>
-      <div class="big-status" id="last-status"></div>
-      <p class="detail" id="last-detail"></p>
+    <h1 class="large-title">Break Enforcer</h1>
+
+    <div class="last" id="last" hidden>
+      <span class="last-icon" aria-hidden="true">
+        <svg class="glyph-pass" viewBox="0 0 24 24"><path d="M6.5 12.5l3.5 3.5 7.5-8"/></svg>
+        <svg class="glyph-fail" viewBox="0 0 24 24"><path d="M8 8l8 8M16 8l-8 8"/></svg>
+      </span>
+      <div>
+        <p class="last-status" id="last-status"></p>
+        <p class="last-detail" id="last-detail"></p>
+      </div>
     </div>
 
-    <button class="primary big" id="start" type="button">Start break</button>
-    <p class="hint" id="start-hint"></p>
-    <p class="msg" id="home-msg" role="status"></p>
+    <div class="dial idle">
+      <svg class="ring" viewBox="0 0 200 200" aria-hidden="true">
+        <circle class="ring-track" cx="100" cy="100" r="94"/>
+      </svg>
+      <div class="dial-face">
+        <span class="timer" id="hero-time">45:25</span>
+        <span class="dial-note" id="hero-sub"></span>
+      </div>
+    </div>
+    <button class="btn btn-primary btn-large" id="start" type="button">Start break</button>
+    <p class="footnote centered" id="start-hint"></p>
+    <p class="msg centered" id="home-msg" role="status"></p>
 
-    <span class="label">Check-in spot photos</span>
-    <p class="hint">When you check in, the AI compares your new photo with these. Light changes a lot between day and night, so if it gets one wrong, add a photo from that time of day. Locked while a break is running.</p>
+    <h2 class="section-title">Check-in spot</h2>
     <div class="refs" id="refs"></div>
     <div class="row">
-      <button class="secondary" id="ref-camera" type="button">Take a photo</button>
-      <label class="secondary file">Choose from library<input type="file" id="ref-file" accept="image/*" hidden></label>
+      <button class="btn btn-gray" id="ref-camera" type="button">Take photo</button>
+      <label class="btn btn-gray file">Choose photo<input type="file" id="ref-file" accept="image/*" hidden></label>
     </div>
+    <p class="footnote">When you check in, the AI compares your new photo with these. Light changes a lot between day and night, so if it gets one wrong, add a photo from that time of day. You can't change them while a break is running.</p>
 
-    <span class="label">Recent</span>
-    <ol class="history" id="history"></ol>
+    <h2 class="section-title">Recent</h2>
+    <ol class="list" id="history"></ol>
   </section>
 
-  <section id="screen-session" class="screen" hidden>
-    <span class="label" id="phase-label">On break</span>
-    <div class="timer" id="timer">--:--</div>
-    <p class="sub mono" id="timer-sub"></p>
-    <button class="primary big alarm" id="arrived" type="button">I'm here · Open camera</button>
+  <section id="screen-session" class="screen session" hidden>
+    <div class="dial" id="dial">
+      <svg class="ring" viewBox="0 0 200 200" aria-hidden="true">
+        <circle class="ring-track" cx="100" cy="100" r="94"/>
+        <circle class="ring-fill" id="ring" cx="100" cy="100" r="94"/>
+      </svg>
+      <div class="dial-face">
+        <span class="phase" id="phase-label">Break</span>
+        <span class="timer" id="timer" role="timer">--:--</span>
+        <span class="dial-note" id="dial-end">
+          <svg class="bell" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a5.5 5.5 0 0 0-5.5 5.5v3.6L4.8 15.5v1h14.4v-1l-1.7-2.9V9A5.5 5.5 0 0 0 12 3.5zM9.8 18.5a2.2 2.2 0 0 0 4.4 0z"/></svg>
+          <span id="dial-end-time"></span>
+        </span>
+      </div>
+    </div>
+    <p class="session-sub" id="timer-sub"></p>
+
+    <div class="result" id="attempt-result" hidden>
+      <p class="result-title" id="attempt-title"></p>
+      <p class="result-reason" id="attempt-reason"></p>
+    </div>
+
+    <button class="btn btn-primary btn-large" id="arrived" type="button">Take check-in photo</button>
+    <p class="msg centered" id="session-msg" role="status"></p>
+
     <div class="session-refs" id="session-refs" hidden>
-      <span class="label">Match this shot</span>
+      <h2 class="section-title">Match this shot</h2>
       <div class="session-refs-row" id="session-refs-row"></div>
     </div>
-    <div class="result" id="attempt-result" hidden>
-      <span class="label" id="attempt-title"></span>
-      <p id="attempt-reason"></p>
-    </div>
-    <p class="msg" id="session-msg" role="status"></p>
-    <ol class="attempts" id="attempts"></ol>
+    <ol class="list attempts" id="attempts"></ol>
   </section>
 </main>
 
@@ -112,17 +157,17 @@
     <img id="ghost" class="ghost" alt="" hidden>
     <img id="still" alt="The photo you just took" hidden>
     <div class="cam-refs" id="cam-refs" hidden>
-      <span>Reference · tap to overlay and line up</span>
+      <span>Tap a reference to line it up</span>
       <div class="cam-refs-row" id="cam-refs-row"></div>
     </div>
   </div>
   <p class="cam-msg" id="cam-msg"></p>
   <div class="camera-bar">
-    <button class="secondary" id="cam-cancel" type="button">Cancel</button>
+    <button class="cam-text" id="cam-cancel" type="button">Cancel</button>
     <button class="shutter" id="cam-shoot" type="button" aria-label="Take photo"></button>
-    <span id="cam-spacer"></span>
-    <button class="secondary" id="cam-retake" type="button" hidden>Retake</button>
-    <button class="primary" id="cam-use" type="button" hidden>Use this one</button>
+    <span class="cam-text" id="cam-spacer"></span>
+    <button class="cam-text" id="cam-retake" type="button" hidden>Retake</button>
+    <button class="cam-text cam-use" id="cam-use" type="button" hidden>Use Photo</button>
   </div>
 </section>
 

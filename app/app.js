@@ -137,8 +137,10 @@
 
   function render() {
     if (state.active) {
+      const arriving = current !== 'session';
       renderSession();
       show('session');
+      if (arriving) windUpRing();
       startTicker();
     } else {
       stopTicker();
@@ -168,9 +170,24 @@
     return pad(d.getHours()) + ':' + pad(d.getMinutes()) + (seconds ? ':' + pad(d.getSeconds()) : '');
   }
 
+  // "Today, 15:21", "Yesterday, 21:04", "Oct 24, 09:30"
   function day(value) {
     const d = new Date(value);
-    return d.getMonth() + 1 + '/' + d.getDate() + ' ' + clock(d);
+    const midnight = new Date();
+    midnight.setHours(0, 0, 0, 0);
+    const daysAgo = Math.floor((midnight - d) / 86400000) + 1;
+    let date;
+    if (daysAgo <= 0) date = 'Today';
+    else if (daysAgo === 1) date = 'Yesterday';
+    else date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return date + ', ' + clock(d);
+  }
+
+  // 300 seconds reads as "5 minutes", 90 as "90 seconds".
+  function duration(seconds) {
+    if (seconds % 60 !== 0) return seconds + ' seconds';
+    const m = seconds / 60;
+    return m === 1 ? '1 minute' : m + ' minutes';
   }
 
   function el(tag, props = {}, ...children) {
@@ -194,8 +211,8 @@
     $('last').hidden = !latest;
     if (latest) {
       const passed = latest.status === 'passed';
-      $('last-status').textContent = passed ? 'Passed ✓' : 'Failed';
-      $('last-status').className = 'big-status ' + (passed ? 'pass' : 'fail');
+      $('last-status').textContent = passed ? 'Last break passed' : 'Last break failed';
+      $('last').className = 'last ' + (passed ? 'pass' : 'fail');
       const lastAttempt = state.attempts[state.attempts.length - 1];
       let detail;
       if (passed) {
@@ -210,10 +227,12 @@
     }
 
     renderStartLabel();
+    $('hero-time').textContent = mmss(state.timing.relax * 1000);
+    $('hero-sub').textContent = `then ${duration(state.timing.buffer)} to check in`;
     const hasRefs = state.references.length > 0;
     $('start').disabled = !hasRefs;
     $('start-hint').textContent = hasRefs
-      ? `Once started, it can't be cancelled. After ${mmss(state.timing.relax * 1000)}, you get ${mmss(state.timing.buffer * 1000)} to take your first photo at the check-in spot.`
+      ? `Once started, a break can't be cancelled. When it ends, you have ${duration(state.timing.buffer)} to take a photo at your check-in spot.`
       : 'Save a check-in spot photo below before you start.';
 
     const refs = $('refs');
@@ -238,7 +257,7 @@
   }
 
   function renderStartLabel() {
-    $('start').textContent = 'Start break ' + mmss((state?.timing.relax ?? 2725) * 1000);
+    $('start').textContent = 'Start break';
   }
 
   // Two taps to start: an accidental tap would lock in a 50 minute session.
@@ -246,7 +265,7 @@
   $('start').onclick = async () => {
     if (Date.now() - startArmedAt > 4000) {
       startArmedAt = Date.now();
-      $('start').textContent = 'Sure? Tap again to start';
+      $('start').textContent = 'Tap again to start';
       setTimeout(() => {
         if (startArmedAt && Date.now() - startArmedAt >= 4000) renderStartLabel();
       }, 4100);
@@ -310,6 +329,22 @@
 
   let ticker = null;
   let lastOverdueRefresh = 0;
+  const RING_LENGTH = 590.62; // 2πr for the ring's r = 94, same as stroke-dasharray in the CSS
+
+  // Opening a session: the ring starts empty and winds up to the time left.
+  function windUpRing() {
+    const dial = $('dial');
+    const ring = $('ring');
+    const target = ring.style.strokeDashoffset;
+    dial.classList.remove('enter');
+    ring.style.transition = 'none';
+    ring.style.strokeDashoffset = String(RING_LENGTH);
+    void ring.getBoundingClientRect();
+    ring.style.transition = '';
+    dial.classList.add('enter');
+    ring.style.strokeDashoffset = target;
+    setTimeout(() => dial.classList.remove('enter'), 1200);
+  }
 
   function startTicker() {
     if (!ticker) ticker = setInterval(tick, 250);
@@ -373,37 +408,50 @@
     const timer = $('timer');
     const arrived = $('arrived');
     let label;
-    let left;
+    let from; // when the current phase began, for the ring
+    let until; // when it ends
     let sub;
+    let ends = ''; // the time beside the bell
     let mode = '';
+    let button = 'btn-primary';
 
     if (s.first_photo_at) {
-      left = Date.parse(s.retake_until) - now;
+      from = Date.parse(s.first_photo_at);
+      until = Date.parse(s.retake_until);
       label = 'Clock stopped';
       mode = 'stopped';
-      sub = left > 0 ? "Photo submitted. If the AI got it wrong, retake it. Retakes don't count against you." : 'Retake time is over. Wrapping up…';
-      arrived.textContent = 'Retake';
-      arrived.hidden = left <= 0;
+      sub = until > now ? "Photo submitted. If the AI got it wrong, retake it. Retakes don't count against you." : 'Retake time is over. Wrapping up…';
+      arrived.textContent = 'Retake photo';
+      button = 'btn-gray';
     } else if (now < relaxEnd) {
-      left = relaxEnd - now;
-      label = 'On break';
-      sub = `Break ends ${clock(relaxEnd)} · First photo due by ${clock(deadline, true)}`;
-      arrived.textContent = "I'm here · Open camera";
-      arrived.hidden = false;
+      from = Date.parse(s.started_at);
+      until = relaxEnd;
+      label = 'Break';
+      ends = clock(relaxEnd);
+      sub = `Then take a photo at your check-in spot by ${clock(deadline, true)}. You can go early.`;
+      arrived.textContent = 'Take check-in photo';
     } else {
-      left = deadline - now;
-      label = 'Go check in';
+      from = relaxEnd;
+      until = deadline;
+      label = 'Check in now';
       mode = 'alarm';
-      sub = `First photo due by ${clock(deadline, true)}`;
-      arrived.textContent = "I'm here · Open camera";
-      arrived.hidden = left <= 0;
-      if (left <= 0) sub = 'Past the deadline. Wrapping up…';
+      ends = clock(deadline, true);
+      sub = until > now ? 'Go to your check-in spot and take the photo.' : 'Past the deadline. Wrapping up…';
+      arrived.textContent = 'Take check-in photo';
     }
+    const left = until - now;
+    arrived.hidden = left <= 0;
+    arrived.className = 'btn btn-large ' + button;
 
     $('phase-label').textContent = label;
     timer.textContent = mmss(left);
-    timer.className = 'timer ' + mode;
+    $('dial').classList.remove('alarm', 'stopped');
+    if (mode) $('dial').classList.add(mode);
+    $('dial-end').hidden = !ends || left <= 0;
+    $('dial-end-time').textContent = ends;
     $('timer-sub').textContent = sub;
+    const remaining = Math.min(1, Math.max(0, left / (until - from)));
+    $('ring').style.strokeDashoffset = String(RING_LENGTH * (1 - remaining));
 
     // Time is up on this phone's view: ask the server, which makes the actual call.
     if (left <= 0 && Date.now() - lastOverdueRefresh > 5000) {
@@ -420,14 +468,14 @@
   let camMode = null;
   let shot = null;
   let ghostUrl = null; // the reference laid over the viewfinder, if any
+  let camGuide = false; // whether reference thumbnails are offered in the viewfinder
 
   async function openCamera(mode) {
     camMode = mode;
     shot = null;
     ghostUrl = null;
-    const guide = mode === 'checkin' && state.references.length > 0;
-    $('cam-refs').hidden = !guide;
-    if (guide) renderRefRow($('cam-refs-row'), toggleGhost);
+    camGuide = mode === 'checkin' && state.references.length > 0;
+    if (camGuide) renderRefRow($('cam-refs-row'), toggleGhost);
     camUi('live');
     $('screen-camera').hidden = false;
     $('cam-msg').textContent =
@@ -473,6 +521,7 @@
     const live = phase === 'live';
     $('video').hidden = !live;
     $('ghost').hidden = !live || !ghostUrl;
+    $('cam-refs').hidden = !live || !camGuide;
     $('still').hidden = live;
     $('cam-cancel').hidden = !live;
     $('cam-shoot').hidden = !live;
@@ -569,6 +618,7 @@
     closeCamera();
     state = null;
     show('auth');
+    $('auth-tabs').hidden = false;
     $('auth-form').hidden = false;
     $('code-form').hidden = true;
     $('reset-form').hidden = true;
@@ -577,7 +627,8 @@
 
   function setAuthMode(mode) {
     authMode = mode;
-    for (const b of document.querySelectorAll('.tabs button')) b.classList.toggle('on', b.dataset.mode === mode);
+    $('auth-tabs').dataset.mode = mode;
+    for (const b of $('auth-tabs').children) b.classList.toggle('on', b.dataset.mode === mode);
     $('auth-submit').textContent = mode === 'login' ? 'Log in' : 'Sign up';
     $('auth-password').autocomplete = mode === 'login' ? 'current-password' : 'new-password';
     $('forgot').hidden = mode !== 'login';
@@ -588,6 +639,7 @@
     pendingEmail = email;
     $('code-email').textContent = email;
     $('code-input').value = '';
+    $('auth-tabs').hidden = true;
     $('auth-form').hidden = true;
     $('code-form').hidden = false;
   }
@@ -599,7 +651,7 @@
     await refresh();
   }
 
-  for (const b of document.querySelectorAll('.tabs button')) b.onclick = () => setAuthMode(b.dataset.mode);
+  for (const b of $('auth-tabs').children) b.onclick = () => setAuthMode(b.dataset.mode);
 
   $('auth-form').onsubmit = async (ev) => {
     ev.preventDefault();
@@ -663,6 +715,7 @@
     $('reset-email').textContent = email;
     $('reset-code').value = '';
     $('reset-password').value = '';
+    $('auth-tabs').hidden = true;
     $('auth-form').hidden = true;
     $('reset-form').hidden = false;
   }

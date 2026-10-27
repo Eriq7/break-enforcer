@@ -3,24 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
 <title>Break Enforcer — a break that ends on time, or it costs you</title>
 <meta name="description" content="Break Enforcer is a self-discipline web app. Start a timed break, check in from a fixed location before the deadline, and nothing is charged. Miss the deadline and a $2.25 CAD service fee is charged with the rest of your deposit held for five days.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230E0E0F'/%3E%3Crect x='6' y='14' width='20' height='4' fill='%23FF4A14'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23000'/%3E%3Ccircle cx='16' cy='16' r='9.5' fill='none' stroke='%23333' stroke-width='3.2'/%3E%3Cpath d='M16 6.5a9.5 9.5 0 1 1 -9.5 9.5' fill='none' stroke='%23FF9F0A' stroke-width='3.2' stroke-linecap='round'/%3E%3C/svg%3E">
 </head>
 <body>
 
 <header class="masthead">
   <div class="wrap">
-    <a class="wordmark" href="/">Break Enforcer<span class="dot">.</span></a>
+    <a class="wordmark" href="/"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="11" class="mark-track"/><path d="M16 5a11 11 0 1 1 -11 11" class="mark-arc"/></svg>Break Enforcer</a>
     <nav class="nav">
       <a href="#how">How it works</a>
-      <a href="#pricing" class="nav-key">Pricing</a>
+      <a href="#pricing">Pricing</a>
       <a href="#policies">Policies</a>
-      <a href="#contact" class="nav-key">Contact</a>
+      <a href="#contact">Contact</a>
     </nav>
   </div>
 </header>
@@ -28,86 +26,95 @@
 <main>
 
   <section class="hero">
-    <div class="wrap hero-grid">
-      <div class="hero-copy">
-        <p class="tagline rise d1">Self-discipline app<span class="sep">/</span>Canada<span class="sep">/</span>Prices in CAD</p>
-        <h1 class="rise d2">Your break ends when it ends.</h1>
-        <p class="lede rise d3">Knowing you should stop is not the same as stopping. Break Enforcer gives you a deadline you cannot argue with: leave the room, take a live photo at a fixed check-in spot, or the app charges you.</p>
-        <p class="lede muted small rise d4">Nothing is charged while your break is running. Your card is only touched if you miss the deadline.</p>
+    <div class="wrap">
+      <h1>Your break ends when it ends.</h1>
+      <p class="lede">Knowing you should stop is not the same as stopping. Break Enforcer gives you a deadline you cannot argue with: leave the room, take a live photo at a fixed check-in spot, or the app charges you.</p>
+
+      <div class="dial" aria-label="A break counting down from 45:25">
+        <svg class="ring" viewBox="0 0 200 200" aria-hidden="true">
+          <circle class="ring-track" cx="100" cy="100" r="94"/>
+          <circle class="ring-fill" id="demo-ring" cx="100" cy="100" r="94"/>
+        </svg>
+        <div class="dial-face">
+          <span class="dial-phase">Break</span>
+          <span class="dial-time" id="demo-time">45:25</span>
+          <span class="dial-note">then 5:00 to check in</span>
+        </div>
       </div>
 
-      <div class="hero-spec rise d3">
-        <p class="readout">45<span class="colon">:</span>25</p>
-        <p class="readout-note">Default break length</p>
-        <table class="spec">
-          <tbody>
-            <tr><th scope="row">Break</th><td>45:25</td></tr>
-            <tr><th scope="row">Check-in buffer</th><td>5:00</td></tr>
-            <tr><th scope="row">Hard deadline</th><td class="hot">50:25</td></tr>
-            <tr><th scope="row">Deposit at risk</th><td>$45.25 CAD</td></tr>
-            <tr><th scope="row">Charged if on time</th><td class="cool">$0.00</td></tr>
-            <tr><th scope="row">Charged if missed</th><td class="hot">$2.25 CAD</td></tr>
-          </tbody>
-        </table>
-      </div>
+      <p class="hero-note">Nothing is charged while your break is running. Your card is only touched if you miss the deadline.</p>
     </div>
   </section>
 
-  <section id="how">
+  <section class="numbers">
+    <div class="wrap narrow">
+      <h2>Every break runs on the same numbers.</h2>
+      <table class="spec">
+        <tbody>
+          <tr><th scope="row">Break</th><td>45:25</td></tr>
+          <tr><th scope="row">Check-in buffer</th><td>5:00</td></tr>
+          <tr><th scope="row">Hard deadline</th><td class="hot">50:25</td></tr>
+          <tr><th scope="row">Deposit at risk</th><td>$45.25 CAD</td></tr>
+          <tr><th scope="row">Charged if on time</th><td class="cool">$0.00</td></tr>
+          <tr><th scope="row">Charged if missed</th><td class="hot">$2.25 CAD</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="how" class="alt">
     <div class="wrap">
-      <p class="eyebrow"><b>01</b> How it works</p>
       <h2>Five steps, one of which you will not enjoy.</h2>
 
-      <div class="steps">
-        <div class="step">
-          <div class="step-num">STEP 01</div>
+      <ol class="steps">
+        <li class="step">
+          <span class="step-num">1</span>
           <div class="step-body">
             <h3>Save a card</h3>
             <p>You add a card once, and it is stored with our payment processor, Stripe. No charge and no hold is placed at this point. Break Enforcer never sees or stores your full card number.</p>
           </div>
-        </div>
-        <div class="step">
-          <div class="step-num">STEP 02</div>
+        </li>
+        <li class="step">
+          <span class="step-num">2</span>
           <div class="step-body">
             <h3>Register a check-in spot</h3>
             <p>Pick a fixed spot that is genuinely away from where you relax, such as a different floor of your building, and register reference photos of it for daytime, evening and night. That spot becomes the only place a check-in counts.</p>
           </div>
-        </div>
-        <div class="step">
-          <div class="step-num">STEP 03</div>
+        </li>
+        <li class="step">
+          <span class="step-num">3</span>
           <div class="step-body">
             <h3>Start a break</h3>
             <p>The clock starts at 45:25 and runs on our servers, not in your browser. Closing the tab, killing the app or letting your phone die does not stop it. Your card is not touched while the break runs.</p>
           </div>
-        </div>
-        <div class="step">
-          <div class="step-num">STEP 04</div>
+        </li>
+        <li class="step">
+          <span class="step-num">4</span>
           <div class="step-body">
             <h3>Check in before 50:25</h3>
             <p>Go to your spot and take a live photo in the app. The camera is the only input; there is no upload from your photo library, so an old picture will not work. The clock stops the moment your first photo is submitted, so if the check is wrong and you retake, the retake does not cost you time.</p>
           </div>
-        </div>
-        <div class="step">
-          <div class="step-num">STEP 05</div>
+        </li>
+        <li class="step">
+          <span class="step-num">5</span>
           <div class="step-body">
             <h3>Miss it, and pay for it</h3>
             <p>If no verified check-in arrives by 50:25, a $2.25 CAD service fee is charged and is not refundable. The remaining $43.00 of your deposit is placed on hold and released within five days. It is never collected.</p>
           </div>
-        </div>
-      </div>
+        </li>
+      </ol>
     </div>
   </section>
 
   <section id="pricing">
     <div class="wrap">
-      <p class="eyebrow"><b>02</b> Pricing</p>
       <h2>There is no subscription. You pay only when you fail.</h2>
-      <p class="lede muted" style="margin-top:20px">Break Enforcer has no monthly fee, no signup fee and no charge for a break you finish on time. All amounts are in Canadian dollars.</p>
+      <p class="section-lede">Break Enforcer has no monthly fee, no signup fee and no charge for a break you finish on time. All amounts are in Canadian dollars.</p>
 
       <div class="outcomes">
         <div class="outcome outcome--ok">
-          <div class="outcome-label">Outcome A — checked in before 50:25</div>
-          <div class="outcome-price">$0.00</div>
+          <p class="outcome-label">Checked in before 50:25</p>
+          <p class="outcome-price">$0.00</p>
           <ul>
             <li>Nothing is charged to your card.</li>
             <li>No hold is placed, so there is no pending amount to wait on.</li>
@@ -116,8 +123,8 @@
           </ul>
         </div>
         <div class="outcome outcome--miss">
-          <div class="outcome-label">Outcome B — deadline missed</div>
-          <div class="outcome-price">$2.25</div>
+          <p class="outcome-label">Deadline missed</p>
+          <p class="outcome-price">$2.25</p>
           <ul>
             <li>A $2.25 service fee is charged and is <strong>not refundable</strong>.</li>
             <li>A separate $43.00 authorization hold is placed on the card. It is never collected.</li>
@@ -151,35 +158,34 @@
             </tr>
           </tbody>
         </table>
-        <p class="small muted" style="margin-top:18px">These appear on your statement as <strong style="font-family:var(--mono)">BREAK ENFORCER</strong>. A hold is an authorization, not a payment: the amount is reserved by your bank and shows as pending, then disappears once the authorization is cancelled. Release timing is controlled by your bank, not by Break Enforcer.</p>
+        <p class="ledger-note">These appear on your statement as <strong>BREAK ENFORCER</strong>. A hold is an authorization, not a payment: the amount is reserved by your bank and shows as pending, then disappears once the authorization is cancelled. Release timing is controlled by your bank, not by Break Enforcer.</p>
       </div>
     </div>
   </section>
 
-  <section id="policies">
+  <section id="policies" class="alt">
     <div class="wrap">
-      <p class="eyebrow"><b>03</b> Policies</p>
       <h2>Everything that can cost you money, written down.</h2>
       <div class="cards">
         <a class="card" href="/policies.html">
           <h3>Refunds and disputes</h3>
           <p>What is refundable, what is not, how long a hold takes to clear, and how to dispute a charge you believe is wrong.</p>
-          <span class="go">Read →</span>
+          <span class="go">Read the refund policy</span>
         </a>
         <a class="card" href="/policies.html#cancellation">
           <h3>Cancellation</h3>
           <p>How to stop a break, stop using the service, remove your card and delete your account.</p>
-          <span class="go">Read →</span>
+          <span class="go">Read the cancellation policy</span>
         </a>
         <a class="card" href="/terms.html">
           <h3>Terms and conditions</h3>
           <p>The agreement between you and Break Enforcer, including eligibility and acceptable use.</p>
-          <span class="go">Read →</span>
+          <span class="go">Read the terms</span>
         </a>
         <a class="card" href="/privacy.html">
           <h3>Privacy</h3>
           <p>What we do with your check-in photos, how long they are kept, and what we never collect.</p>
-          <span class="go">Read →</span>
+          <span class="go">Read the privacy policy</span>
         </a>
       </div>
     </div>
@@ -187,7 +193,6 @@
 
   <section id="contact">
     <div class="wrap">
-      <p class="eyebrow"><b>04</b> Contact</p>
       <h2>A real person answers this inbox.</h2>
       <dl class="contact-grid">
         <div class="contact-item">
@@ -215,7 +220,7 @@
 <footer class="foot">
   <div class="wrap foot-grid">
     <div class="foot-legal">
-      <strong style="font-family:var(--display);letter-spacing:.05em;text-transform:uppercase;color:var(--ink)">Break Enforcer</strong><br>
+      <strong class="foot-name">Break Enforcer</strong><br>
       A self-discipline web app operated as a sole proprietorship in Canada.<br>
       Payments processed by Stripe. Statement descriptor: BREAK ENFORCER.<br>
       breakenforcer@gmail.com
@@ -232,5 +237,29 @@
   </div>
 </footer>
 
+<script>
+  // The hero dial winds up, then counts down in real time like a break that just started.
+  (() => {
+    const ring = document.getElementById('demo-ring');
+    const time = document.getElementById('demo-time');
+    const LENGTH = 590.62; // 2πr for r = 94
+    const TOTAL = 45 * 60 + 25;
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const show = (left) => {
+      time.textContent = Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+      ring.style.strokeDashoffset = String(LENGTH * (1 - left / TOTAL));
+    };
+    if (still) return show(TOTAL);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      ring.classList.add('wound');
+      show(TOTAL);
+      const start = Date.now() + 1200;
+      setInterval(() => {
+        const left = TOTAL - Math.max(0, Math.floor((Date.now() - start) / 1000));
+        if (left >= 0) show(left);
+      }, 250);
+    }));
+  })();
+</script>
 </body>
 </html>
