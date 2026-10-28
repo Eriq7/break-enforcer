@@ -254,6 +254,7 @@
       : 'Add a check-in spot with a photo below before you start.';
 
     renderSpots();
+    renderTelegram();
 
     const history = $('history');
     history.replaceChildren();
@@ -384,6 +385,35 @@
       flash('spots-msg', e.message);
     }
   }
+
+  // ---------- Telegram reminder ----------
+
+  let tgOpening = false; // sent the user off to tap Start in Telegram
+
+  function renderTelegram() {
+    $('tg-connect').textContent = state.telegram ? 'Reconnect' : 'Connect';
+    $('tg-note').textContent = state.telegram
+      ? 'Connected. Telegram messages you 5 minutes before a break ends, even when this app is closed.'
+      : 'Get a Telegram message 5 minutes before a break ends, even when this app is closed. Needs the Telegram app.';
+    if (tgOpening && state.telegram) {
+      tgOpening = false;
+      flash('tg-msg', 'Telegram connected', true);
+    }
+  }
+
+  $('tg-connect').onclick = async () => {
+    $('tg-connect').disabled = true;
+    try {
+      const r = await cloud.api('POST', 'telegram');
+      tgOpening = true;
+      flash('tg-msg', 'Opening Telegram. Tap Start there, then come back.', true);
+      location.href = r.url;
+    } catch (e) {
+      flash('tg-msg', e.message);
+    } finally {
+      $('tg-connect').disabled = false;
+    }
+  };
 
   // ---------- session ----------
 

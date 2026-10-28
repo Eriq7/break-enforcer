@@ -373,6 +373,7 @@ button:disabled { cursor: not-allowed; }
   background: var(--sep);
 }
 .when { font-variant-numeric: tabular-nums; }
+.list .text-btn { padding: 0; }
 .list .dim { color: var(--label-2); }
 .list li > span:last-child { color: var(--label-2); text-align: right; }
 .list li > span.tag-pass { color: var(--green); }

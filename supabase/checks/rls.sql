@@ -22,6 +22,8 @@ begin
   insert into public.sessions (user_id, relax_ends_at, deadline_at)
     values (a, now() + interval '45 minutes', now() + interval '50 minutes') returning id into sa;
   insert into public.photo_attempts (session_id, user_id, storage_path) values (sa, a, a || '/attempts/x.jpg');
+  insert into public.telegram_links (user_id, chat_id) values (a, 111);
+  insert into public.telegram_codes (code, user_id, expires_at) values ('rls-code', a, now() + interval '1 minute');
 
   -- The photos bucket has no storage policies at all, so only the server reaches it.
   select count(*) into n from pg_policies where schemaname = 'storage' and tablename = 'objects';
@@ -34,6 +36,18 @@ begin
   if n <> 1 then failed := failed || ' A cannot read own refs;'; end if;
   select count(*) into n from public.spots;
   if n <> 1 then failed := failed || ' A cannot read own spots;'; end if;
+  select count(*) into n from public.telegram_links;
+  if n <> 1 then failed := failed || ' A cannot read own telegram link;'; end if;
+  begin
+    select count(*) into n from public.telegram_codes;
+    failed := failed || ' A reads telegram codes;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    update public.telegram_links set chat_id = 999;
+    failed := failed || ' A changes telegram link;';
+  exception when insufficient_privilege then null;
+  end;
   select count(*) into n from public.sessions;
   if n <> 1 then failed := failed || ' A cannot read own sessions;'; end if;
   select count(*) into n from public.photo_attempts;
@@ -131,6 +145,31 @@ begin
     failed := failed || ' A runs be_delete_spot;';
   exception when insufficient_privilege then null;
   end;
+  begin
+    perform public.be_telegram_link('rls-code', 999);
+    failed := failed || ' A runs be_telegram_link;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.be_telegram_code(a, 'x');
+    failed := failed || ' A runs be_telegram_code;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.be_set_telegram_bot('x', 'x');
+    failed := failed || ' A runs be_set_telegram_bot;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.be_send_reminders();
+    failed := failed || ' A runs be_send_reminders;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.be_due_reminders();
+    failed := failed || ' A runs be_due_reminders;';
+  exception when insufficient_privilege then null;
+  end;
 
   -- B sees none of A's rows.
   execute 'reset role';
@@ -144,6 +183,8 @@ begin
   if n <> 0 then failed := failed || ' B reads A attempts;'; end if;
   select count(*) into n from public.spots;
   if n <> 0 then failed := failed || ' B reads A spots;'; end if;
+  select count(*) into n from public.telegram_links;
+  if n <> 0 then failed := failed || ' B reads A telegram link;'; end if;
 
   -- Not logged in: no access at all.
   execute 'reset role';

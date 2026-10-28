@@ -2,7 +2,8 @@
 -- Expect the error "LOGIC CHECK PASSED (rolled back)".
 -- Walks the judging rules through the be_* functions as the server (service_role):
 -- 50:25 deadline, first photo stops the clock, retakes, reference lock, overdue sessions failing,
--- and check-in spots: each has its own photos, and a check-in names the spot it is compared with.
+-- check-in spots (each has its own photos, a check-in names the spot it is compared with),
+-- and Telegram: link codes, and the reminder at 40:00 going out once to the right breaks.
 -- now() is frozen inside one transaction, so the time-based cases use back-dated rows.
 do $$
 declare
@@ -12,6 +13,8 @@ declare
   empty_spot public.spots;
   other_spot public.spots;
   paths text[];
+  r record;
+  msg text;
   s public.sessions;
   att public.photo_attempts;
   ref public.reference_photos;
@@ -204,6 +207,67 @@ begin
   perform public.be_finalize_sessions();
   select * into s from public.sessions where id = s.id;
   if s.status <> 'failed' or s.fail_reason is distinct from 'no_pass' then failed := failed || ' no pass not failed as no_pass;'; end if;
+
+  -- Telegram link codes: a new code replaces the old one, works once, and not after it expires.
+  -- The bot set here is fake and rolled back with everything else.
+  perform public.be_set_telegram_bot('123:check-token', 'check_bot');
+  if public.be_telegram_code(a, 'code-a-1') <> 'check_bot' then failed := failed || ' code did not return the bot;'; end if;
+  perform public.be_telegram_code(a, 'code-a-2');
+  if public.be_telegram_link('code-a-1', 111) is not null then failed := failed || ' replaced code still works;'; end if;
+  if public.be_telegram_link('code-a-2', 111) is distinct from a then failed := failed || ' code did not link;'; end if;
+  if public.be_telegram_link('code-a-2', 222) is not null then failed := failed || ' code worked twice;'; end if;
+  insert into public.telegram_codes (code, user_id, expires_at) values ('code-old', a, now() - interval '1 second');
+  if public.be_telegram_link('code-old', 222) is not null then failed := failed || ' expired code worked;'; end if;
+  select count(*) into n from public.telegram_links where user_id = a and chat_id = 111;
+  if n <> 1 then failed := failed || ' link not saved;'; end if;
+
+  -- Reminder: inside the last 5:25 of a running break with no photo, once.
+  insert into public.sessions (user_id, started_at, relax_ends_at, deadline_at)
+  values (a, now() - interval '41 minutes', now() + interval '4 minutes 25 seconds', now() + interval '9 minutes 25 seconds')
+  returning * into s;
+  n := 0;
+  for r in select * from public.be_due_reminders() loop
+    if r.chat_id = 111 then n := n + 1; msg := r.message; end if;
+  end loop;
+  if n <> 1 then failed := failed || ' due reminder not sent once;'; end if;
+  if msg is distinct from 'Your break ends in 4 minutes. Then you have 5 minutes to take your check-in photo. Head to your check-in spot.' then
+    failed := failed || ' reminder text: ' || coalesce(msg, 'none') || ';';
+  end if;
+  select count(*) into n from public.be_due_reminders() where chat_id = 111;
+  if n <> 0 then failed := failed || ' reminded twice;'; end if;
+
+  -- Not yet due, photo already in, break already over: no reminder.
+  update public.sessions set status = 'passed' where id = s.id;
+  insert into public.sessions (user_id, started_at, relax_ends_at, deadline_at)
+  values (a, now() - interval '39 minutes', now() + interval '6 minutes', now() + interval '11 minutes') returning * into s;
+  select count(*) into n from public.be_due_reminders() where chat_id = 111;
+  if n <> 0 then failed := failed || ' reminded too early;'; end if;
+  update public.sessions set status = 'passed' where id = s.id;
+  insert into public.sessions (user_id, started_at, relax_ends_at, deadline_at, first_photo_at, retake_until)
+  values (a, now() - interval '42 minutes', now() + interval '3 minutes', now() + interval '8 minutes', now(), now() + interval '5 minutes') returning * into s;
+  select count(*) into n from public.be_due_reminders() where chat_id = 111;
+  if n <> 0 then failed := failed || ' reminded after a photo;'; end if;
+  update public.sessions set status = 'passed' where id = s.id;
+  insert into public.sessions (user_id, started_at, relax_ends_at, deadline_at)
+  values (a, now() - interval '46 minutes', now() - interval '1 minute', now() + interval '4 minutes') returning * into s;
+  select count(*) into n from public.be_due_reminders() where chat_id = 111;
+  if n <> 0 then failed := failed || ' reminded after the break;'; end if;
+  update public.sessions set status = 'passed' where id = s.id;
+
+  -- No Telegram linked: nothing to send, and the break stays unmarked.
+  insert into public.sessions (user_id, started_at, relax_ends_at, deadline_at)
+  values (b, now() - interval '41 minutes', now() + interval '4 minutes', now() + interval '9 minutes') returning * into s;
+  perform public.be_due_reminders();
+  select * into s from public.sessions where id = s.id;
+  if s.warned_at is not null then failed := failed || ' marked a break with no Telegram;'; end if;
+  update public.sessions set status = 'passed' where id = s.id;
+
+  -- The sender queues one Telegram request per due break (never sent: all of this rolls back).
+  insert into public.sessions (user_id, started_at, relax_ends_at, deadline_at)
+  values (a, now() - interval '41 minutes', now() + interval '4 minutes', now() + interval '9 minutes') returning * into s;
+  if public.be_send_reminders() < 1 then failed := failed || ' sender sent nothing;'; end if;
+  select * into s from public.sessions where id = s.id;
+  if s.warned_at is null then failed := failed || ' sender did not mark the break;'; end if;
 
   execute 'reset role';
   if failed = '' then

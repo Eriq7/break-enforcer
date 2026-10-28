@@ -9,11 +9,12 @@ export default route(['GET'], async (req) => {
   // So an overdue session shows up as failed right away, without waiting for the minute cron.
   await rpc('be_finalize_sessions');
 
-  const [spots, references, sessions] = await Promise.all([
+  const [spots, references, sessions, telegram] = await Promise.all([
     db().from('spots').select('id, name, created_at').eq('user_id', user.id).order('created_at'),
     db().from('reference_photos').select('id, spot_id, storage_path, created_at').eq('user_id', user.id).order('created_at'),
     db().from('sessions').select('*').eq('user_id', user.id).order('started_at', { ascending: false }).limit(10),
-  ]).then(([p, r, s]) => [must(p, 'spots'), must(r, 'references'), must(s, 'sessions')]);
+    db().from('telegram_links').select('user_id').eq('user_id', user.id),
+  ]).then(([p, r, s, t]) => [must(p, 'spots'), must(r, 'references'), must(s, 'sessions'), must(t, 'telegram')]);
 
   const latest = sessions[0] || null;
   const attempts = latest
@@ -34,6 +35,7 @@ export default route(['GET'], async (req) => {
         .filter((r) => r.spot_id === p.id)
         .map((r) => ({ id: r.id, created_at: r.created_at, url: urls[r.storage_path] || null })),
     })),
+    telegram: telegram.length > 0,
     active: latest?.status === 'active' ? latest : null,
     latest,
     attempts,
