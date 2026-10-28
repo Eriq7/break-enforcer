@@ -1,5 +1,6 @@
 .DS_Store
-Break_Enforcer_交接文档.md
+# 项目文档，只存本地：里面有 Stripe 账号信息，仓库是 public 的
+Break_Enforcer_主应用.md
 
 # Eric 存的 Stripe live secret key 截图，绝对不能进 git
 Stripe secret key break enforcer.*

@@ -8,7 +8,7 @@
 //
 // 顺带验证一件主应用强依赖的事：off-session 授权到底压不压得动。
 // 主应用在 50:25 判罚的时候 Eric 人不在页面上，走的就是 off-session，
-// 如果他的银行拒绝 off-session，整套机制会静默失效（交接文档第七节坑 1）。
+// 如果他的银行拒绝 off-session，整套机制会静默失效（Break_Enforcer_主应用.md「还没定的事」里的欠账模式）。
 //
 // 金额写死（实验 1 $1.00，实验 2 $1.25，金额不同是为了在银行 App 里分得清两笔），不从环境变量读，避免手滑压出一笔大钱。
 
@@ -352,7 +352,7 @@ app.post('/api/report', wrap(async function (req, res) {
       '，funding=`' + s.payment_method.funding + '`，country=' + s.payment_method.country);
     if (s.payment_method.funding !== 'debit') {
       lines.push('');
-      lines.push('**注意：这张卡的 funding 不是 debit。** 交接文档第二节定的是 debit，credit 卡只占额度、钱没离开账户，痛感弱，结论不可直接套用。');
+      lines.push('**注意：这张卡的 funding 不是 debit。** Break_Enforcer_主应用.md 的已定规格是 debit，credit 卡只占额度、钱没离开账户，痛感弱，结论不可直接套用。');
     }
     lines.push('');
   }
@@ -370,7 +370,7 @@ app.post('/api/report', wrap(async function (req, res) {
       ' | ' + fmtDelta(r.voided_at, r.bank_cleared_at) + ' |');
   }
   lines.push('');
-  lines.push('## 决策表（交接文档第零节第 7 步）');
+  lines.push('## 决策表（Break_Enforcer_主应用.md「银行实测结果」）');
   lines.push('');
   lines.push('| 测出来 | 怎么办 |');
   lines.push('|---|---|');
