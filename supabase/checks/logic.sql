@@ -208,6 +208,28 @@ begin
   select * into s from public.sessions where id = s.id;
   if s.status <> 'failed' or s.fail_reason is distinct from 'no_pass' then failed := failed || ' no pass not failed as no_pass;'; end if;
 
+  -- The AI never answered the last photo: excused, not failed. A real "no" last is still a fail.
+  for i in 1..4 loop
+    insert into public.sessions (user_id, started_at, relax_ends_at, deadline_at, first_photo_at, retake_until)
+    values (a, now() - interval '55 minutes', now() - interval '10 minutes', now() - interval '5 minutes',
+            now() - interval '6 minutes', now() - interval '3 minutes')
+    returning * into s;
+    insert into public.photo_attempts (session_id, user_id, storage_path, submitted_at, verdict)
+    values (s.id, a, a || '/attempts/x' || i || 'a.jpg', now() - interval '6 minutes',
+            (array['error', 'error', 'fail', 'error'])[i]);
+    insert into public.photo_attempts (session_id, user_id, storage_path, submitted_at, verdict)
+    values (s.id, a, a || '/attempts/x' || i || 'b.jpg', now() - interval '4 minutes',
+            (array['error', 'pending', 'error', 'fail'])[i]);
+    perform public.be_finalize_sessions();
+    select * into s from public.sessions where id = s.id;
+    if i < 4 and (s.status <> 'excused' or s.fail_reason is not null) then
+      failed := failed || ' last photo unanswered (case ' || i || ') not excused: ' || s.status || ';';
+    end if;
+    if i = 4 and (s.status <> 'failed' or s.fail_reason is distinct from 'no_pass') then
+      failed := failed || ' AI said no last, but not failed;';
+    end if;
+  end loop;
+
   -- Telegram link codes: a new code replaces the old one, works once, and not after it expires.
   -- The bot set here is fake and rolled back with everything else.
   perform public.be_set_telegram_bot('123:check-token', 'check_bot');

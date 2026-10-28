@@ -202,6 +202,7 @@
   function sessionTag(s) {
     if (s.status === 'passed') return ['Passed', 'tag-pass'];
     if (s.status === 'active') return ['In progress', ''];
+    if (s.status === 'excused') return ['Not counted', ''];
     return [s.fail_reason === 'no_pass' ? 'Photo failed' : 'No photo', 'tag-fail'];
   }
 
@@ -229,18 +230,21 @@
     $('last').hidden = !latest;
     if (latest) {
       const passed = latest.status === 'passed';
-      $('last-status').textContent = passed ? 'Last break passed' : 'Last break failed';
-      $('last').className = 'last ' + (passed ? 'pass' : 'fail');
+      const excused = latest.status === 'excused';
+      $('last-status').textContent = passed ? 'Last break passed' : excused ? "Last break doesn't count" : 'Last break failed';
+      $('last').className = 'last ' + (passed ? 'pass' : excused ? 'excused' : 'fail');
       const lastAttempt = state.attempts[state.attempts.length - 1];
       let detail;
       if (passed) {
         detail = `First photo at ${clock(latest.first_photo_at, true)}. The deadline was ${clock(latest.deadline_at, true)}.`;
+      } else if (excused) {
+        detail = "The AI check wasn't working when you checked in, so this break doesn't count against you.";
       } else if (latest.fail_reason === 'no_photo') {
         detail = `No photo before ${clock(latest.deadline_at, true)}.`;
       } else {
         detail = 'No photo passed the check.' + (lastAttempt?.reason ? ` Last one: ${lastAttempt.reason}` : '');
       }
-      if (!passed) detail += " Payments aren't connected yet, so nothing was charged.";
+      if (!passed && !excused) detail += " Payments aren't connected yet, so nothing was charged.";
       $('last-detail').textContent = detail;
     }
 

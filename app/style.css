@@ -296,8 +296,9 @@ button:disabled { cursor: not-allowed; }
 }
 .last.pass .last-icon { background: var(--green); }
 .last-icon svg { width: 18px; height: 18px; fill: none; stroke: #000; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
-.last .glyph-pass, .last.pass .glyph-fail { display: none; }
-.last.pass .glyph-pass { display: block; }
+.last.excused .last-icon { background: var(--label-3); }
+.last .glyph-pass, .last .glyph-excused, .last.pass .glyph-fail, .last.excused .glyph-fail { display: none; }
+.last.pass .glyph-pass, .last.excused .glyph-excused { display: block; }
 .last-status { font-size: 17px; line-height: 22px; font-weight: 600; padding-top: 4px; }
 .last-detail { margin-top: 4px; font-size: 15px; line-height: 20px; color: var(--label-2); }
 

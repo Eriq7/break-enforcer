@@ -32,7 +32,7 @@ export default route(['POST'], async (req) => {
     console.error('photo check failed:', e.message);
     result = {
       verdict: 'error',
-      reason: e instanceof HttpError ? e.message : 'The AI check failed. Just retake the photo.',
+      reason: e instanceof HttpError ? e.message : "The AI check failed. Retake the photo. If it keeps failing, this break won't count against you.",
       model: null,
       raw: null,
     };
