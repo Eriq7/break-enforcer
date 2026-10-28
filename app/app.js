@@ -144,6 +144,7 @@
       startTicker();
     } else {
       stopTicker();
+      $('spot-picker').hidden = true;
       renderHome();
       show('home');
     }
@@ -204,6 +205,23 @@
     return [s.fail_reason === 'no_pass' ? 'Photo failed' : 'No photo', 'tag-fail'];
   }
 
+  // Spots you can check in at: the ones with at least one photo.
+  const usableSpots = () => state.spots.filter((p) => p.references.length > 0);
+  const photoCount = (n) => (n === 1 ? '1 photo' : n + ' photos');
+
+  // Deleting takes two taps. True on the second one.
+  function confirmed(button, question) {
+    if (button.classList.contains('armed')) return true;
+    const label = button.textContent;
+    button.classList.add('armed');
+    button.textContent = question;
+    setTimeout(() => {
+      button.classList.remove('armed');
+      button.textContent = label;
+    }, 3000);
+    return false;
+  }
+
   // ---------- home ----------
 
   function renderHome() {
@@ -229,23 +247,13 @@
     renderStartLabel();
     $('hero-time').textContent = mmss(state.timing.relax * 1000);
     $('hero-sub').textContent = `then ${duration(state.timing.buffer)} to check in`;
-    const hasRefs = state.references.length > 0;
+    const hasRefs = usableSpots().length > 0;
     $('start').disabled = !hasRefs;
     $('start-hint').textContent = hasRefs
       ? `Once started, a break can't be cancelled. When it ends, you have ${duration(state.timing.buffer)} to take a photo at your check-in spot.`
-      : 'Save a check-in spot photo below before you start.';
+      : 'Add a check-in spot with a photo below before you start.';
 
-    const refs = $('refs');
-    refs.replaceChildren();
-    if (!hasRefs) refs.append(el('div', { className: 'refs-empty', textContent: 'No check-in spot photos yet' }));
-    for (const r of state.references) {
-      const del = el('button', { type: 'button', textContent: 'Delete' });
-      del.onclick = () => deleteReference(r.id, del);
-      refs.append(el('div', { className: 'ref' }, el('img', { src: r.url || '', alt: 'Reference photo', loading: 'lazy' }), del));
-    }
-    const full = state.references.length >= 6;
-    $('ref-camera').disabled = full;
-    $('ref-file').disabled = full;
+    renderSpots();
 
     const history = $('history');
     history.replaceChildren();
@@ -285,45 +293,97 @@
     }
   };
 
-  async function deleteReference(id, button) {
-    if (!button.classList.contains('armed')) {
-      button.classList.add('armed');
-      button.textContent = 'Delete?';
-      setTimeout(() => {
-        button.classList.remove('armed');
-        button.textContent = 'Delete';
-      }, 3000);
-      return;
+  // Each spot: its name, its photos, and buttons to add more.
+  function renderSpots() {
+    const box = $('spots');
+    box.replaceChildren();
+    if (state.spots.length === 0) {
+      box.append(el('div', { className: 'refs-empty spots-empty', textContent: 'No check-in spots yet. Name one below, then add a photo of it.' }));
     }
+    for (const spot of state.spots) {
+      const refs = el('div', { className: 'refs' });
+      if (spot.references.length === 0) refs.append(el('div', { className: 'refs-empty', textContent: 'No photos yet' }));
+      for (const r of spot.references) {
+        const del = el('button', { type: 'button', textContent: 'Delete' });
+        del.onclick = () => deleteReference(r.id, del);
+        refs.append(el('div', { className: 'ref' }, el('img', { src: r.url || '', alt: 'Reference photo', loading: 'lazy' }), del));
+      }
+      const full = spot.references.length >= 6;
+      const camera = el('button', { type: 'button', className: 'btn btn-gray', textContent: 'Take photo', disabled: full });
+      camera.onclick = () => openCamera('reference', spot);
+      const file = el('input', { type: 'file', accept: 'image/*', hidden: true, disabled: full });
+      file.onchange = (ev) => chooseReference(ev, spot);
+      const delSpot = el('button', { type: 'button', className: 'text-btn', textContent: 'Delete spot' });
+      delSpot.onclick = () => deleteSpot(spot.id, delSpot);
+      box.append(
+        el('div', { className: 'spot' },
+          el('div', { className: 'spot-head' }, el('h3', { className: 'spot-name', textContent: spot.name }), delSpot),
+          refs,
+          el('div', { className: 'row' }, camera, el('label', { className: 'btn btn-gray file' }, 'Choose photo', file)),
+        ),
+      );
+    }
+  }
+
+  $('add-spot').onsubmit = async (ev) => {
+    ev.preventDefault();
+    const name = $('spot-name').value.trim();
+    if (!name) return flash('spots-msg', 'Give the spot a name first');
+    $('add-spot-btn').disabled = true;
+    try {
+      await cloud.api('POST', 'spots', { name });
+      $('spot-name').value = '';
+      await refresh();
+      flash('spots-msg', `Added ${name}. Now add a photo of it.`, true);
+    } catch (e) {
+      flash('spots-msg', e.message);
+    } finally {
+      $('add-spot-btn').disabled = false;
+    }
+  };
+
+  async function deleteSpot(id, button) {
+    if (!confirmed(button, 'Delete it and its photos?')) return;
+    button.disabled = true;
+    try {
+      await cloud.api('DELETE', 'spots?id=' + encodeURIComponent(id));
+      await refresh();
+    } catch (e) {
+      flash('spots-msg', e.message);
+      button.disabled = false;
+    }
+  }
+
+  async function deleteReference(id, button) {
+    if (!confirmed(button, 'Delete?')) return;
     button.disabled = true;
     try {
       await cloud.api('DELETE', 'references?id=' + encodeURIComponent(id));
       await refresh();
     } catch (e) {
-      flash('home-msg', e.message);
+      flash('spots-msg', e.message);
       button.disabled = false;
     }
   }
 
-  async function saveReference(dataUrl) {
-    await cloud.api('POST', 'references', { image: dataUrl.split(',')[1] });
+  async function saveReference(dataUrl, spot) {
+    await cloud.api('POST', 'references', { spot_id: spot.id, image: dataUrl.split(',')[1] });
     await refresh();
-    flash('home-msg', 'Photo saved', true);
+    flash('spots-msg', `Photo saved to ${spot.name}`, true);
   }
 
   // Picking from the album is fine for the reference; check-ins only ever use the live camera.
-  $('ref-file').onchange = async (ev) => {
+  async function chooseReference(ev, spot) {
     const file = ev.target.files[0];
     ev.target.value = '';
     if (!file) return;
-    flash('home-msg', 'Saving…', true);
+    flash('spots-msg', 'Saving…', true);
     try {
-      await saveReference(await fileToJpeg(file));
+      await saveReference(await fileToJpeg(file), spot);
     } catch (e) {
-      flash('home-msg', e.message);
+      flash('spots-msg', e.message);
     }
-  };
-  $('ref-camera').onclick = () => openCamera('reference');
+  }
 
   // ---------- session ----------
 
@@ -363,7 +423,8 @@
     box.hidden = !last;
     if (last) {
       box.className = 'result ' + last.verdict;
-      $('attempt-title').textContent = VERDICT_TEXT[last.verdict] || last.verdict;
+      const where = state.spots.length > 1 ? state.spots.find((p) => p.id === last.spot_id)?.name : null;
+      $('attempt-title').textContent = (VERDICT_TEXT[last.verdict] || last.verdict) + (where ? ' · ' + where : '');
       $('attempt-reason').textContent = last.reason || '';
     }
     const list = $('attempts');
@@ -376,19 +437,27 @@
         ),
       );
     }
-    renderRefRow($('session-refs-row'), (ref) => {
-      $('peek-img').src = ref.url;
-      $('peek').hidden = false;
-    });
-    $('session-refs').hidden = state.references.length === 0;
+    const spots = usableSpots();
+    const group = $('session-spots');
+    group.replaceChildren();
+    for (const spot of spots) {
+      const row = el('div', { className: 'session-refs-row' });
+      renderRefRow(row, spot.references, (ref) => {
+        $('peek-img').src = ref.url;
+        $('peek').hidden = false;
+      });
+      if (spots.length > 1) group.append(el('p', { className: 'spot-label', textContent: spot.name }));
+      group.append(row);
+    }
+    $('session-refs').hidden = spots.length === 0;
     flash('session-msg', '');
     tick();
   }
 
   // One button per reference photo, used on the session screen and inside the camera.
-  function renderRefRow(row, onPick) {
+  function renderRefRow(row, refs, onPick) {
     row.replaceChildren();
-    for (const ref of state.references) {
+    for (const ref of refs) {
       const button = el('button', { type: 'button', title: 'Reference photo' }, el('img', { src: ref.url || '', alt: 'Reference photo' }));
       button.onclick = () => onPick(ref, button);
       row.append(button);
@@ -460,28 +529,56 @@
     }
   }
 
-  $('arrived').onclick = () => openCamera('checkin');
+  // With more than one spot, ask where the user is. The AI only compares with that spot's photos.
+  $('arrived').onclick = () => {
+    const spots = usableSpots();
+    if (spots.length === 1) return openCamera('checkin', spots[0]);
+    const list = $('spot-picks');
+    list.replaceChildren();
+    for (const spot of spots) {
+      const pick = el('button', { type: 'button', className: 'pick' },
+        el('img', { src: spot.references[0].url || '', alt: '' }),
+        el('span', { className: 'pick-name', textContent: spot.name }),
+        el('span', { className: 'pick-meta', textContent: photoCount(spot.references.length) }),
+      );
+      pick.onclick = () => {
+        $('spot-picker').hidden = true;
+        openCamera('checkin', spot);
+      };
+      list.append(el('li', {}, pick));
+    }
+    $('spot-picker').hidden = false;
+  };
+
+  $('spot-picker-cancel').onclick = () => {
+    $('spot-picker').hidden = true;
+  };
+  $('spot-picker').onclick = (ev) => {
+    if (ev.target === $('spot-picker')) $('spot-picker').hidden = true;
+  };
 
   // ---------- camera ----------
 
   let stream = null;
   let camMode = null;
+  let camSpot = null; // the spot this photo is for
   let shot = null;
   let ghostUrl = null; // the reference laid over the viewfinder, if any
   let camGuide = false; // whether reference thumbnails are offered in the viewfinder
 
-  async function openCamera(mode) {
+  async function openCamera(mode, spot) {
     camMode = mode;
+    camSpot = spot;
     shot = null;
     ghostUrl = null;
-    camGuide = mode === 'checkin' && state.references.length > 0;
-    if (camGuide) renderRefRow($('cam-refs-row'), toggleGhost);
+    camGuide = mode === 'checkin' && spot.references.length > 0;
+    if (camGuide) renderRefRow($('cam-refs-row'), spot.references, toggleGhost);
     camUi('live');
     $('screen-camera').hidden = false;
     $('cam-msg').textContent =
       mode === 'checkin'
-        ? 'Match the angle of your reference photo. Tap one at the bottom left to lay it over the view, line it up, then shoot.'
-        : 'Shoot the fixed scene at your check-in spot, with no people in it. Pick a distinctive angle with art, furniture or signs. Plain walls and blinds are not enough.';
+        ? `Checking in at ${spot.name}. Match the angle of a reference photo: tap one at the bottom left to lay it over the view, line it up, then shoot.`
+        : `Photo for ${spot.name}. Shoot the fixed scene with no people in it. Pick a distinctive angle with art, furniture or signs. Plain walls and blinds are not enough.`;
     if (!navigator.mediaDevices?.getUserMedia) {
       $('cam-msg').textContent = "This page can't use the camera. Open it from an https address.";
       return;
@@ -553,7 +650,7 @@
     if (camMode === 'reference') {
       $('cam-msg').textContent = 'Saving…';
       try {
-        await saveReference(shot);
+        await saveReference(shot, camSpot);
         closeCamera();
       } catch (e) {
         $('cam-msg').textContent = e.message;
@@ -564,7 +661,7 @@
 
     $('cam-msg').textContent = 'The AI is checking. A few seconds…';
     try {
-      const r = await cloud.api('POST', 'photo', { session_id: state.active.id, image: shot.split(',')[1] });
+      const r = await cloud.api('POST', 'photo', { session_id: state.active.id, spot_id: camSpot.id, image: shot.split(',')[1] });
       syncClock(r.server_now);
       closeCamera();
       await refresh();
@@ -616,6 +713,7 @@
   function showAuth(message) {
     stopTicker();
     closeCamera();
+    $('spot-picker').hidden = true;
     state = null;
     show('auth');
     $('auth-tabs').hidden = false;

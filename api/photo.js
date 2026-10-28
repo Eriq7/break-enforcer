@@ -9,8 +9,9 @@ import { isUuid } from '../lib/ids.js';
 
 export default route(['POST'], async (req) => {
   const user = await requireUser(req);
-  const { session_id: sessionId, image } = req.body || {};
+  const { session_id: sessionId, spot_id: spotId, image } = req.body || {};
   if (!isUuid(sessionId)) throw new HttpError(400, 'bad_request', 'Missing break id');
+  if (!isUuid(spotId)) throw new HttpError(400, 'bad_request', 'Pick the spot you are checking in at');
   const photo = decodeJpeg(image);
   const path = attemptPath(user.id, sessionId);
 
@@ -18,6 +19,7 @@ export default route(['POST'], async (req) => {
   const attempt = await rpc('be_record_photo', {
     p_user_id: user.id,
     p_session_id: sessionId,
+    p_spot_id: spotId,
     p_storage_path: path,
     p_retake_seconds: timing().retake,
   });
@@ -25,7 +27,7 @@ export default route(['POST'], async (req) => {
   let result;
   try {
     await upload(path, photo);
-    result = await compare(await loadReferences(user.id), photo);
+    result = await compare(await loadReferences(spotId), photo);
   } catch (e) {
     console.error('photo check failed:', e.message);
     result = {
@@ -46,9 +48,10 @@ export default route(['POST'], async (req) => {
   return { verdict: result.verdict, reason: result.reason, session, server_now: new Date().toISOString() };
 });
 
-async function loadReferences(userId) {
+// Only the chosen spot's photos. be_record_photo has already checked the spot is this user's.
+async function loadReferences(spotId) {
   const rows = must(
-    await db().from('reference_photos').select('storage_path').eq('user_id', userId).order('created_at'),
+    await db().from('reference_photos').select('storage_path').eq('spot_id', spotId).order('created_at'),
     'references',
   );
   return Promise.all(rows.map((r) => download(r.storage_path)));

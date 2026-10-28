@@ -106,13 +106,16 @@
     <p class="footnote centered" id="start-hint"></p>
     <p class="msg centered" id="home-msg" role="status"></p>
 
-    <h2 class="section-title">Check-in spot</h2>
-    <div class="refs" id="refs"></div>
-    <div class="row">
-      <button class="btn btn-gray" id="ref-camera" type="button">Take photo</button>
-      <label class="btn btn-gray file">Choose photo<input type="file" id="ref-file" accept="image/*" hidden></label>
-    </div>
-    <p class="footnote">When you check in, the AI compares your new photo with these. Light changes a lot between day and night, so if it gets one wrong, add a photo from that time of day. You can't change them while a break is running.</p>
+    <h2 class="section-title">Check-in spots</h2>
+    <div id="spots"></div>
+    <form class="add-spot" id="add-spot" novalidate>
+      <div class="fields">
+        <input id="spot-name" placeholder="New spot, e.g. 7th floor room" aria-label="New spot name" maxlength="40" autocomplete="off" enterkeyhint="done">
+      </div>
+      <button class="btn btn-gray" type="submit" id="add-spot-btn">Add</button>
+    </form>
+    <p class="msg" id="spots-msg" role="status"></p>
+    <p class="footnote">Add one spot for each place you go to check in, like a study room at each home. When a break ends, you pick where you are, and the AI compares your photo with that spot's photos only. Light changes a lot between day and night, so if it gets one wrong, add a photo from that time of day. You can't change spots while a break is running.</p>
 
     <h2 class="section-title">Recent</h2>
     <ol class="list" id="history"></ol>
@@ -145,7 +148,7 @@
 
     <div class="session-refs" id="session-refs" hidden>
       <h2 class="section-title">Match this shot</h2>
-      <div class="session-refs-row" id="session-refs-row"></div>
+      <div id="session-spots"></div>
     </div>
     <ol class="list attempts" id="attempts"></ol>
   </section>
@@ -168,6 +171,14 @@
     <span class="cam-text" id="cam-spacer"></span>
     <button class="cam-text" id="cam-retake" type="button" hidden>Retake</button>
     <button class="cam-text cam-use" id="cam-use" type="button" hidden>Use Photo</button>
+  </div>
+</section>
+
+<section class="sheet" id="spot-picker" hidden>
+  <div class="sheet-card" role="dialog" aria-labelledby="spot-picker-title">
+    <h2 class="sheet-title" id="spot-picker-title">Where are you checking in?</h2>
+    <ul class="list picks" id="spot-picks"></ul>
+    <button class="btn btn-gray" id="spot-picker-cancel" type="button">Cancel</button>
   </div>
 </section>
 

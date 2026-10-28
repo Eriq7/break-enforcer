@@ -1,4 +1,4 @@
-// Add (POST) or delete (DELETE ?id=) a reference photo. Both are refused while a session runs.
+// Add (POST { spot_id, image }) or delete (DELETE ?id=) a reference photo. Both are refused while a session runs.
 import { HttpError, queryParam, route } from '../lib/http.js';
 import { db, requireUser, rpc } from '../lib/db.js';
 import { decodeJpeg, referencePath, remove, upload } from '../lib/photos.js';
@@ -8,10 +8,12 @@ export default route(['POST', 'DELETE'], async (req) => {
   const user = await requireUser(req);
 
   if (req.method === 'POST') {
+    const spotId = req.body?.spot_id;
+    if (!isUuid(spotId)) throw new HttpError(400, 'bad_request', 'Missing spot id');
     const photo = decodeJpeg(req.body?.image);
     const path = referencePath(user.id);
     // The row goes in first: that is where the session lock and the photo limit are checked.
-    const ref = await rpc('be_add_reference', { p_user_id: user.id, p_storage_path: path });
+    const ref = await rpc('be_add_reference', { p_user_id: user.id, p_spot_id: spotId, p_storage_path: path });
     try {
       await upload(path, photo);
     } catch (e) {

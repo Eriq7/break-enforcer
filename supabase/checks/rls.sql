@@ -7,6 +7,7 @@ declare
   a uuid := gen_random_uuid();
   b uuid := gen_random_uuid();
   sa uuid;
+  spa uuid;
   n int;
   failed text := '';
   as_user text := 'select set_config(''request.jwt.claims'', json_build_object(''sub'', %L, ''role'', ''authenticated'')::text, true)';
@@ -16,7 +17,8 @@ begin
     (b, 'rls-b@example.invalid', 'authenticated', 'authenticated');
 
   -- A's rows, written the way the server writes them.
-  insert into public.reference_photos (user_id, storage_path) values (a, a || '/refs/x.jpg');
+  insert into public.spots (user_id, name) values (a, 'A spot') returning id into spa;
+  insert into public.reference_photos (user_id, spot_id, storage_path) values (a, spa, a || '/refs/x.jpg');
   insert into public.sessions (user_id, relax_ends_at, deadline_at)
     values (a, now() + interval '45 minutes', now() + interval '50 minutes') returning id into sa;
   insert into public.photo_attempts (session_id, user_id, storage_path) values (sa, a, a || '/attempts/x.jpg');
@@ -30,6 +32,8 @@ begin
   execute 'set local role authenticated';
   select count(*) into n from public.reference_photos;
   if n <> 1 then failed := failed || ' A cannot read own refs;'; end if;
+  select count(*) into n from public.spots;
+  if n <> 1 then failed := failed || ' A cannot read own spots;'; end if;
   select count(*) into n from public.sessions;
   if n <> 1 then failed := failed || ' A cannot read own sessions;'; end if;
   select count(*) into n from public.photo_attempts;
@@ -51,8 +55,18 @@ begin
   exception when insufficient_privilege then null;
   end;
   begin
-    insert into public.reference_photos (storage_path) values ('x');
+    insert into public.reference_photos (spot_id, storage_path) values (spa, 'x');
     failed := failed || ' A inserts reference;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    insert into public.spots (name) values ('x');
+    failed := failed || ' A inserts spot;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    delete from public.spots;
+    failed := failed || ' A deletes spot;';
   exception when insufficient_privilege then null;
   end;
   begin
@@ -88,7 +102,7 @@ begin
   exception when insufficient_privilege then null;
   end;
   begin
-    perform public.be_record_photo(a, sa, 'z', 60);
+    perform public.be_record_photo(a, sa, spa, 'z', 60);
     failed := failed || ' A runs be_record_photo;';
   exception when insufficient_privilege then null;
   end;
@@ -98,13 +112,23 @@ begin
   exception when insufficient_privilege then null;
   end;
   begin
-    perform public.be_add_reference(a, 'w');
+    perform public.be_add_reference(a, spa, 'w');
     failed := failed || ' A runs be_add_reference;';
   exception when insufficient_privilege then null;
   end;
   begin
     perform public.be_delete_reference(a, gen_random_uuid());
     failed := failed || ' A runs be_delete_reference;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.be_add_spot(a, 'x');
+    failed := failed || ' A runs be_add_spot;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.be_delete_spot(a, spa);
+    failed := failed || ' A runs be_delete_spot;';
   exception when insufficient_privilege then null;
   end;
 
@@ -118,6 +142,8 @@ begin
   if n <> 0 then failed := failed || ' B reads A sessions;'; end if;
   select count(*) into n from public.photo_attempts;
   if n <> 0 then failed := failed || ' B reads A attempts;'; end if;
+  select count(*) into n from public.spots;
+  if n <> 0 then failed := failed || ' B reads A spots;'; end if;
 
   -- Not logged in: no access at all.
   execute 'reset role';
@@ -130,6 +156,11 @@ begin
   begin
     select count(*) into n from public.reference_photos;
     failed := failed || ' anon reads refs;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    select count(*) into n from public.spots;
+    failed := failed || ' anon reads spots;';
   exception when insufficient_privilege then null;
   end;
 
