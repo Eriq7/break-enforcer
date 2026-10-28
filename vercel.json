@@ -5,6 +5,7 @@
   "outputDirectory": "public",
   "redirects": [{ "source": "/app", "destination": "/app/", "permanent": false }],
   "functions": {
-    "api/photo.js": { "maxDuration": 60 }
+    "api/photo.js": { "maxDuration": 60 },
+    "api/billing.js": { "maxDuration": 60 }
   }
 }

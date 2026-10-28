@@ -118,6 +118,13 @@
     <p class="msg" id="spots-msg" role="status"></p>
     <p class="footnote">Add one spot for each place you go to check in, like a study room at each home. When a break ends, you pick where you are, and the AI compares your photo with that spot's photos only. Light changes a lot between day and night, so if it gets one wrong, add a photo from that time of day. You can't change spots while a break is running.</p>
 
+    <h2 class="section-title">Card</h2>
+    <ul class="list">
+      <li><span id="card-label">No card yet</span><button class="text-btn" id="card-edit" type="button">Add</button></li>
+    </ul>
+    <p class="msg" id="card-msg" role="status"></p>
+    <p class="footnote" id="card-note"></p>
+
     <h2 class="section-title">Reminder</h2>
     <ul class="list">
       <li><span>Telegram</span><button class="text-btn" id="tg-connect" type="button">Connect</button></li>
@@ -187,6 +194,19 @@
     <h2 class="sheet-title" id="spot-picker-title">Where are you checking in?</h2>
     <ul class="list picks" id="spot-picks"></ul>
     <button class="btn btn-gray" id="spot-picker-cancel" type="button">Cancel</button>
+  </div>
+</section>
+
+<section class="sheet" id="card-sheet" hidden>
+  <div class="sheet-card" role="dialog" aria-labelledby="card-sheet-title">
+    <h2 class="sheet-title" id="card-sheet-title">Add a card</h2>
+    <p class="sheet-note">Saving a card charges nothing. It's only charged if you miss a check-in.</p>
+    <div class="card-form" id="card-form"></div>
+    <p class="msg" id="card-sheet-msg" role="status"></p>
+    <div class="sheet-actions">
+      <button class="btn btn-primary" id="card-save" type="button">Save card</button>
+      <button class="btn btn-gray" id="card-cancel" type="button">Cancel</button>
+    </div>
   </div>
 </section>
 

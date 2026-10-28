@@ -24,6 +24,9 @@ begin
   insert into public.photo_attempts (session_id, user_id, storage_path) values (sa, a, a || '/attempts/x.jpg');
   insert into public.telegram_links (user_id, chat_id) values (a, 111);
   insert into public.telegram_codes (code, user_id, expires_at) values ('rls-code', a, now() + interval '1 minute');
+  insert into public.cards (user_id, livemode, customer_id, payment_method_id) values (a, false, 'cus_a', 'pm_a');
+  insert into public.charges (session_id, user_id, kind, livemode, amount, currency, status)
+    values (sa, a, 'fee', false, 225, 'cad', 'paid');
 
   -- The photos bucket has no storage policies at all, so only the server reaches it.
   select count(*) into n from pg_policies where schemaname = 'storage' and tablename = 'objects';
@@ -50,6 +53,35 @@ begin
   end;
   select count(*) into n from public.sessions;
   if n <> 1 then failed := failed || ' A cannot read own sessions;'; end if;
+  select count(*) into n from public.cards;
+  if n <> 1 then failed := failed || ' A cannot read own card;'; end if;
+  select count(*) into n from public.charges;
+  if n <> 1 then failed := failed || ' A cannot read own charges;'; end if;
+  begin
+    update public.cards set payment_method_id = 'pm_empty';
+    failed := failed || ' A changes card;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    insert into public.cards (user_id, livemode, customer_id) values (a, true, 'cus_x');
+    failed := failed || ' A inserts card;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    update public.charges set status = 'voided';
+    failed := failed || ' A rewrites a charge;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    delete from public.charges;
+    failed := failed || ' A deletes a charge;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    update public.sessions set billing_status = 'declined';
+    failed := failed || ' A rewrites billing;';
+  exception when insufficient_privilege then null;
+  end;
   select count(*) into n from public.photo_attempts;
   if n <> 1 then failed := failed || ' A cannot read own attempts;'; end if;
 
@@ -171,6 +203,52 @@ begin
   exception when insufficient_privilege then null;
   end;
 
+  begin
+    perform public.be_start_session(a, 1, 1, 'test');
+    failed := failed || ' A runs be_start_session(billing);';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.be_save_customer(a, false, 'cus_x');
+    failed := failed || ' A runs be_save_customer;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.be_save_card(a, false, 'cus_a', 'pm_x', 'visa', '0000', 'debit', 1, 2030);
+    failed := failed || ' A runs be_save_card;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.be_claim_billing();
+    failed := failed || ' A runs be_claim_billing;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.be_record_charge(sa, 'hold', 1, 'cad', null, 'voided', null, null, null);
+    failed := failed || ' A runs be_record_charge;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.be_finish_billing(sa, 'charged', null);
+    failed := failed || ' A runs be_finish_billing;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.be_due_voids();
+    failed := failed || ' A runs be_due_voids;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.be_mark_voided(gen_random_uuid());
+    failed := failed || ' A runs be_mark_voided;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.be_kick_billing();
+    failed := failed || ' A runs be_kick_billing;';
+  exception when insufficient_privilege then null;
+  end;
+
   -- B sees none of A's rows.
   execute 'reset role';
   execute format(as_user, b);
@@ -185,6 +263,10 @@ begin
   if n <> 0 then failed := failed || ' B reads A spots;'; end if;
   select count(*) into n from public.telegram_links;
   if n <> 0 then failed := failed || ' B reads A telegram link;'; end if;
+  select count(*) into n from public.cards;
+  if n <> 0 then failed := failed || ' B reads A card;'; end if;
+  select count(*) into n from public.charges;
+  if n <> 0 then failed := failed || ' B reads A charges;'; end if;
 
   -- Not logged in: no access at all.
   execute 'reset role';
@@ -202,6 +284,16 @@ begin
   begin
     select count(*) into n from public.spots;
     failed := failed || ' anon reads spots;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    select count(*) into n from public.cards;
+    failed := failed || ' anon reads cards;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    select count(*) into n from public.charges;
+    failed := failed || ' anon reads charges;';
   exception when insufficient_privilege then null;
   end;
 

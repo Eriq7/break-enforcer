@@ -3,19 +3,25 @@
 -- Walks the judging rules through the be_* functions as the server (service_role):
 -- 50:25 deadline, first photo stops the clock, retakes, reference lock, overdue sessions failing,
 -- check-in spots (each has its own photos, a check-in names the spot it is compared with),
--- and Telegram: link codes, and the reminder at 40:00 going out once to the right breaks.
+-- Telegram: link codes, and the reminder at 40:00 going out once to the right breaks,
+-- and payments: a card is needed to start, the card is locked while a break runs or waits to be
+-- charged, failed breaks (only those) become due, claims, charge rows, and holds coming due.
 -- now() is frozen inside one transaction, so the time-based cases use back-dated rows.
 do $$
 declare
   a uuid := gen_random_uuid();
   b uuid := gen_random_uuid();
+  c uuid := gen_random_uuid();
   sp public.spots;
+  csp public.spots;
   empty_spot public.spots;
   other_spot public.spots;
   paths text[];
   r record;
   msg text;
   s public.sessions;
+  s2 public.sessions;
+  ch public.charges;
   att public.photo_attempts;
   ref public.reference_photos;
   n int;
@@ -23,10 +29,13 @@ declare
 begin
   select count(*) into n from cron.job where jobname = 'be-finalize-sessions' and schedule = '* * * * *';
   if n <> 1 then failed := failed || ' cron job missing;'; end if;
+  select count(*) into n from cron.job where jobname = 'be-billing' and schedule = '* * * * *';
+  if n <> 1 then failed := failed || ' billing cron job missing;'; end if;
 
   insert into auth.users (id, email, aud, role) values
     (a, 'logic-a@example.invalid', 'authenticated', 'authenticated'),
-    (b, 'logic-b@example.invalid', 'authenticated', 'authenticated');
+    (b, 'logic-b@example.invalid', 'authenticated', 'authenticated'),
+    (c, 'logic-c@example.invalid', 'authenticated', 'authenticated');
   execute 'set local role service_role';
 
   -- No reference photo yet: cannot start.
@@ -290,6 +299,159 @@ begin
   if public.be_send_reminders() < 1 then failed := failed || ' sender sent nothing;'; end if;
   select * into s from public.sessions where id = s.id;
   if s.warned_at is null then failed := failed || ' sender did not mark the break;'; end if;
+
+  -- Payments. Starting needs a saved card in the server's Stripe mode; a customer alone isn't one.
+  csp := public.be_add_spot(c, 'C room');
+  perform public.be_add_reference(c, csp.id, c || '/refs/c.jpg');
+  begin
+    perform public.be_start_session(c, 2725, 300, 'test');
+    failed := failed || ' started without a card;';
+  exception when others then
+    if sqlerrm <> 'no_card' then failed := failed || ' no_card? ' || sqlerrm || ';'; end if;
+  end;
+  if public.be_save_customer(c, false, 'cus_first') <> 'cus_first' then failed := failed || ' customer not saved;'; end if;
+  if public.be_save_customer(c, false, 'cus_second') <> 'cus_first' then failed := failed || ' second customer replaced the first;'; end if;
+  begin
+    perform public.be_start_session(c, 2725, 300, 'test');
+    failed := failed || ' started with a customer but no card;';
+  exception when others then
+    if sqlerrm <> 'no_card' then failed := failed || ' no_card(customer only)? ' || sqlerrm || ';'; end if;
+  end;
+  begin
+    perform public.be_save_card(c, false, 'cus_other', 'pm_x', 'visa', '4242', 'debit', 12, 2030);
+    failed := failed || ' card saved under another customer;';
+  exception when others then
+    if sqlerrm <> 'card_not_found' then failed := failed || ' card_not_found? ' || sqlerrm || ';'; end if;
+  end;
+  if public.be_save_card(c, false, 'cus_first', 'pm_1', 'visa', '4242', 'debit', 12, 2030) is not null then
+    failed := failed || ' first card returned an old one;';
+  end if;
+
+  -- A test mode card doesn't start a live break, and a break must have a mode.
+  begin
+    perform public.be_start_session(c, 2725, 300, 'live');
+    failed := failed || ' live break on a test card;';
+  exception when others then
+    if sqlerrm <> 'no_card' then failed := failed || ' no_card(live)? ' || sqlerrm || ';'; end if;
+  end;
+  begin
+    perform public.be_start_session(c, 2725, 300, null);
+    failed := failed || ' break with no billing mode;';
+  exception when others then
+    if sqlerrm <> 'bad_billing_mode' then failed := failed || ' bad_billing_mode? ' || sqlerrm || ';'; end if;
+  end;
+  s := public.be_start_session(c, 2725, 300, 'test');
+  if s.billing_mode is distinct from 'test' then failed := failed || ' break did not keep its mode;'; end if;
+
+  -- The card is locked during a break.
+  begin
+    perform public.be_save_card(c, false, 'cus_first', 'pm_2', 'visa', '0341', 'debit', 12, 2030);
+    failed := failed || ' card changed during a break;';
+  exception when others then
+    if sqlerrm <> 'card_locked' then failed := failed || ' card_locked? ' || sqlerrm || ';'; end if;
+  end;
+
+  -- It fails: due to be charged, and the card stays locked until that's done.
+  update public.sessions
+  set started_at = now() - interval '51 minutes', relax_ends_at = now() - interval '6 minutes', deadline_at = now() - interval '1 minute'
+  where id = s.id;
+  perform public.be_finalize_sessions();
+  select * into s from public.sessions where id = s.id;
+  if s.status <> 'failed' or s.billing_status is distinct from 'due' then failed := failed || ' failed break not due for billing;'; end if;
+  begin
+    perform public.be_save_card(c, false, 'cus_first', 'pm_2', 'visa', '0341', 'debit', 12, 2030);
+    failed := failed || ' card changed while a charge was due;';
+  exception when others then
+    if sqlerrm <> 'card_locked' then failed := failed || ' card_locked(due)? ' || sqlerrm || ';'; end if;
+  end;
+
+  -- Excused breaks, and breaks from before payments, are never due.
+  insert into public.sessions (user_id, started_at, relax_ends_at, deadline_at, first_photo_at, retake_until, billing_mode)
+  values (b, now() - interval '55 minutes', now() - interval '10 minutes', now() - interval '5 minutes',
+          now() - interval '6 minutes', now() - interval '3 minutes', 'test')
+  returning * into s2;
+  insert into public.photo_attempts (session_id, user_id, storage_path, verdict) values (s2.id, b, b || '/attempts/ex.jpg', 'error');
+  perform public.be_finalize_sessions();
+  select * into s2 from public.sessions where id = s2.id;
+  if s2.status <> 'excused' or s2.billing_status is not null then failed := failed || ' excused break due for billing;'; end if;
+  insert into public.sessions (user_id, started_at, relax_ends_at, deadline_at)
+  values (b, now() - interval '51 minutes', now() - interval '6 minutes', now() - interval '1 minute')
+  returning * into s2;
+  perform public.be_finalize_sessions();
+  select * into s2 from public.sessions where id = s2.id;
+  if s2.status <> 'failed' or s2.billing_status is not null then failed := failed || ' break from before payments due for billing;'; end if;
+
+  -- With a break due, the minute job pokes /api/billing (queued in pg_net, then rolled back).
+  if not public.be_kick_billing() then failed := failed || ' kick did not poke with a break due;'; end if;
+
+  -- A claim hands out the break once, with its card.
+  n := 0;
+  for r in select * from public.be_claim_billing() loop
+    if r.session_id = s.id then
+      n := n + 1;
+      if r.customer_id <> 'cus_first' or r.payment_method_id <> 'pm_1' or r.billing_mode <> 'test' or r.billing_tries <> 1 then
+        failed := failed || ' claim returned the wrong card;';
+      end if;
+    end if;
+  end loop;
+  if n <> 1 then failed := failed || ' due break not claimed once;'; end if;
+  select count(*) into n from public.be_claim_billing() where session_id = s.id;
+  if n <> 0 then failed := failed || ' claimed twice at once;'; end if;
+
+  -- What Stripe said: a hold and a paid fee, then billing is done and stays done.
+  ch := public.be_record_charge(s.id, 'hold', 4300, 'cad', 'pi_hold', 'held', null,
+                                now() + interval '4 days 18 hours', now() + interval '4 days 17 hours');
+  if ch.livemode or ch.user_id <> c then failed := failed || ' charge has the wrong owner or mode;'; end if;
+  perform public.be_record_charge(s.id, 'fee', 225, 'cad', 'pi_fee', 'paid', null, null, null);
+  begin
+    perform public.be_finish_billing(s.id, 'due', null);
+    failed := failed || ' billing finished as due;';
+  exception when others then
+    if sqlerrm <> 'bad_billing_status' then failed := failed || ' bad_billing_status? ' || sqlerrm || ';'; end if;
+  end;
+  perform public.be_finish_billing(s.id, 'charged', null);
+  select * into s from public.sessions where id = s.id;
+  if s.billing_status <> 'charged' or s.billed_at is null or s.billing_claimed_until is not null then
+    failed := failed || ' billing not finished;';
+  end if;
+  perform public.be_finish_billing(s.id, 'error', 'x');
+  select * into s from public.sessions where id = s.id;
+  if s.billing_status <> 'charged' then failed := failed || ' finished billing changed again;'; end if;
+  if public.be_save_card(c, false, 'cus_first', 'pm_2', 'visa', '0341', 'debit', 12, 2030) is distinct from 'pm_1' then
+    failed := failed || ' card did not unlock, or did not return the old card;';
+  end if;
+
+  -- The hold is voided when its time comes, not before, and only once.
+  select count(*) into n from public.be_due_voids() where charge_id = ch.id;
+  if n <> 0 then failed := failed || ' hold due early;'; end if;
+  update public.charges set void_due_at = now() - interval '1 second' where id = ch.id;
+  select count(*) into n from public.be_due_voids() where charge_id = ch.id;
+  if n <> 1 then failed := failed || ' due hold not listed;'; end if;
+  perform public.be_mark_voided(ch.id);
+  select * into ch from public.charges where id = ch.id;
+  if ch.status <> 'voided' or ch.voided_at is null then failed := failed || ' hold not marked voided;'; end if;
+  select count(*) into n from public.be_due_voids() where charge_id = ch.id;
+  if n <> 0 then failed := failed || ' voided hold still due;'; end if;
+
+  -- Recording a kind again updates its row and keeps what the new call doesn't know.
+  perform public.be_record_charge(s.id, 'hold', 4300, 'cad', null, 'voided', null, null, null);
+  select * into ch from public.charges where id = ch.id;
+  if ch.payment_intent_id is distinct from 'pi_hold' or ch.void_due_at is null then failed := failed || ' update lost the hold details;'; end if;
+  select count(*) into n from public.charges where session_id = s.id;
+  if n <> 2 then failed := failed || ' charge rows: ' || n || ';'; end if;
+  begin
+    perform public.be_record_charge(s2.id, 'fee', 225, 'cad', 'pi_old', 'paid', null, null, null);
+    failed := failed || ' charged a break from before payments;';
+  exception when others then
+    if sqlerrm <> 'session_not_billable' then failed := failed || ' session_not_billable? ' || sqlerrm || ';'; end if;
+  end;
+
+  -- Nothing due: the minute job stays quiet.
+  if not exists (select 1 from public.sessions where billing_status = 'due')
+     and not exists (select 1 from public.charges where status = 'held' and void_due_at <= now())
+     and public.be_kick_billing() then
+    failed := failed || ' kick poked with nothing due;';
+  end if;
 
   execute 'reset role';
   if failed = '' then

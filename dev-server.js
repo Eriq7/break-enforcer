@@ -107,7 +107,7 @@ function notFound(res) {
 }
 
 server.listen(PORT, HOST, () => {
-  const missing = ['SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'OPENAI_API_KEY'].filter((k) => !process.env[k]);
+  const missing = ['SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'OPENAI_API_KEY', 'STRIPE_SECRET_KEY', 'STRIPE_PUBLISHABLE_KEY'].filter((k) => !process.env[k]);
   console.log(`Break Enforcer dev server: http://${HOST}:${PORT}/app/`);
   if (missing.length) console.log(`  Still empty in .env: ${missing.join(', ')}`);
   if (process.env.TEST_RELAX_SECONDS || process.env.TEST_BUFFER_SECONDS) {

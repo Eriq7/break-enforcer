@@ -244,20 +244,24 @@
       } else {
         detail = 'No photo passed the check.' + (lastAttempt?.reason ? ` Last one: ${lastAttempt.reason}` : '');
       }
-      if (!passed && !excused) detail += " Payments aren't connected yet, so nothing was charged.";
+      if (!passed && !excused) detail += ' ' + billingLine(latest);
       $('last-detail').textContent = detail;
     }
+    watchBilling();
 
     renderStartLabel();
     $('hero-time').textContent = mmss(state.timing.relax * 1000);
     $('hero-sub').textContent = `then ${duration(state.timing.buffer)} to check in`;
     const hasRefs = usableSpots().length > 0;
-    $('start').disabled = !hasRefs;
-    $('start-hint').textContent = hasRefs
-      ? `Once started, a break can't be cancelled. When it ends, you have ${duration(state.timing.buffer)} to take a photo at your check-in spot.`
-      : 'Add a check-in spot with a photo below before you start.';
+    $('start').disabled = !hasRefs || !state.card;
+    $('start-hint').textContent = !hasRefs
+      ? 'Add a check-in spot with a photo below before you start.'
+      : !state.card
+        ? 'Add a card below before you start. Saving it charges nothing.'
+        : `Once started, a break can't be cancelled. When it ends, you have ${duration(state.timing.buffer)} to take a photo at your check-in spot.`;
 
     renderSpots();
+    renderCard();
     renderTelegram();
 
     const history = $('history');
@@ -389,6 +393,116 @@
       flash('spots-msg', e.message);
     }
   }
+
+  // ---------- card ----------
+
+  const money = (cents) => '$' + (cents / 100).toFixed(2);
+  // "Nov 2, 15:30"
+  const dateTime = (value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' + clock(value);
+  const BRANDS = { visa: 'Visa', mastercard: 'Mastercard', amex: 'Amex', discover: 'Discover', jcb: 'JCB', unionpay: 'UnionPay', diners: 'Diners' };
+
+  // What a failed break cost, or why it cost nothing.
+  function billingLine(s) {
+    if (!s.billing_mode) return "Payments weren't connected yet, so nothing was charged.";
+    const hold = state.charges.find((c) => c.kind === 'hold');
+    const fee = state.charges.find((c) => c.kind === 'fee');
+    if (s.billing_status === 'charged' && hold && fee) {
+      return hold.status === 'voided'
+        ? `Charged the ${money(fee.amount)} fee. The ${money(hold.amount)} hold was released on ${dateTime(hold.voided_at)}.`
+        : `Charged a ${money(fee.amount)} fee and put ${money(hold.amount)} on hold, released on ${dateTime(hold.void_due_at)}.`;
+    }
+    if (s.billing_status === 'declined' || s.billing_status === 'error') return s.billing_note || 'Nothing was charged.';
+    return 'Charging your card…';
+  }
+
+  // A failed break is charged within a minute or two. Check back until it's done.
+  let billingCheck = null;
+  function watchBilling() {
+    if (state.latest?.billing_status !== 'due' || billingCheck) return;
+    billingCheck = setTimeout(() => {
+      billingCheck = null;
+      refresh();
+    }, 5000);
+  }
+
+  function renderCard() {
+    const c = state.card;
+    $('card-label').textContent = c ? `${BRANDS[c.brand] || 'Card'} ${c.funding === 'debit' ? 'debit ' : ''}•••• ${c.last4}` : 'No card yet';
+    $('card-label').className = c ? '' : 'dim';
+    $('card-edit').textContent = c ? 'Change' : 'Add';
+    let note = 'Missing a check-in costs $45.25: a $2.25 fee, plus a $43.00 hold that is released within 5 days. If the card is declined, nothing is charged.';
+    if (state.payments_mode === 'test') note += ' Test mode: no real money moves. Use a Stripe test card, like 4242 4242 4242 4242 with any future date and any CVC.';
+    $('card-note').textContent = note;
+  }
+
+  let stripeJs = null; // Stripe's script, loaded the first time a card is added
+  let cardForm = null; // { stripe, elements } while the card sheet is open
+
+  function loadStripe() {
+    if (!stripeJs) {
+      stripeJs = new Promise((resolve, reject) => {
+        const script = el('script', { src: 'https://js.stripe.com/v3/' });
+        script.onload = () => resolve(window.Stripe);
+        script.onerror = () => {
+          stripeJs = null;
+          script.remove();
+          reject(offline());
+        };
+        document.head.append(script);
+      });
+    }
+    return stripeJs;
+  }
+
+  // Stripe's own card form, in a sheet. The card number goes straight to Stripe, never to our server.
+  $('card-edit').onclick = async () => {
+    $('card-edit').disabled = true;
+    flash('card-msg', '');
+    try {
+      const [Stripe, r] = await Promise.all([loadStripe(), cloud.api('POST', 'card')]);
+      const stripe = Stripe(r.publishable_key);
+      const elements = stripe.elements({
+        clientSecret: r.client_secret,
+        appearance: { theme: 'night', variables: { colorPrimary: '#FF9F0A', colorBackground: '#2C2C2E', borderRadius: '10px' } },
+      });
+      $('card-form').replaceChildren();
+      elements.create('payment', { wallets: { applePay: 'never', googlePay: 'never' } }).mount($('card-form'));
+      cardForm = { stripe, elements };
+      $('card-sheet-title').textContent = state.card ? 'Change card' : 'Add a card';
+      flash('card-sheet-msg', '');
+      $('card-sheet').hidden = false;
+    } catch (e) {
+      flash('card-msg', e.message);
+    } finally {
+      $('card-edit').disabled = false;
+    }
+  };
+
+  function closeCardSheet() {
+    $('card-sheet').hidden = true;
+    $('card-form').replaceChildren();
+    cardForm = null;
+  }
+
+  $('card-cancel').onclick = closeCardSheet;
+
+  $('card-save').onclick = async () => {
+    if (!cardForm) return;
+    $('card-save').disabled = true;
+    flash('card-sheet-msg', '');
+    try {
+      const { error, setupIntent } = await cardForm.stripe.confirmSetup({ elements: cardForm.elements, redirect: 'if_required' });
+      if (error) throw new Error(error.message);
+      await cloud.api('PUT', 'card', { setup_intent_id: setupIntent.id });
+      closeCardSheet();
+      await refresh();
+      flash('card-msg', 'Card saved', true);
+    } catch (e) {
+      flash('card-sheet-msg', e.message);
+    } finally {
+      $('card-save').disabled = false;
+    }
+  };
 
   // ---------- Telegram reminder ----------
 
@@ -747,6 +861,7 @@
   function showAuth(message) {
     stopTicker();
     closeCamera();
+    closeCardSheet();
     $('spot-picker').hidden = true;
     state = null;
     show('auth');

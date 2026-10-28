@@ -510,6 +510,10 @@ button:disabled { cursor: not-allowed; }
   border-radius: 20px 20px 0 0;
 }
 .sheet-title { margin: 0 4px 16px; font-size: 20px; line-height: 25px; font-weight: 700; }
+.sheet-note { margin: -8px 4px 16px; font-size: 15px; line-height: 20px; color: var(--label-2); }
+/* Stripe's card form draws itself inside this box. */
+.card-form { min-height: 120px; }
+.sheet-actions { display: grid; gap: 10px; margin-top: 8px; }
 .picks { margin-bottom: 12px; background: var(--cell-2); }
 .picks li { padding: 0; }
 .picks li + li::before { left: 72px; }
