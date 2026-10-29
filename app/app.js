@@ -236,10 +236,10 @@
     const hasRefs = state.references.length > 0;
     $('start').disabled = !hasRefs || !state.card;
     $('start-hint').textContent = !hasRefs
-      ? 'Add a photo of your check-in spot in Settings before you start.'
+      ? 'Add a check-in photo in Settings first.'
       : !state.card
-        ? 'Add a card in Settings before you start. Saving it charges nothing.'
-        : `Once started, a break can't be cancelled. When it ends, you have ${duration(state.timing.buffer)} to take a photo at your check-in spot.`;
+        ? 'Add a card in Settings first.'
+        : "Can't be cancelled once started.";
     $('start-setup').hidden = hasRefs && !!state.card;
   }
 
@@ -340,7 +340,7 @@
     const box = $('refs');
     box.replaceChildren();
     if (state.references.length === 0) {
-      box.append(el('div', { className: 'refs-empty', textContent: 'No check-in photos yet. Go to the place you will check in at and take one.' }));
+      box.append(el('div', { className: 'refs-empty', textContent: 'No photos yet' }));
     }
     for (const r of state.references) {
       const open = el('button', { type: 'button', className: 'ref-open', title: 'View photo' }, el('img', { src: r.url || '', alt: r.description, loading: 'lazy' }));
@@ -516,9 +516,7 @@
     $('card-label').textContent = c ? `${BRANDS[c.brand] || 'Card'} ${c.funding === 'debit' ? 'debit ' : ''}•••• ${c.last4}` : 'No card yet';
     $('card-label').className = c ? '' : 'dim';
     $('card-edit').textContent = c ? 'Change' : 'Add';
-    let note = 'Missing a check-in costs $45.25: a $2.25 fee, plus a $43.00 hold that is released within 5 days. If the card is declined, nothing is charged.';
-    if (state.payments_mode === 'test') note += ' Test mode: no real money moves. Use a Stripe test card, like 4242 4242 4242 4242 with any future date and any CVC.';
-    $('card-note').textContent = note;
+    $('card-note').textContent = 'A missed check-in costs a $2.25 fee plus a $43 hold, released in 5 days.';
   }
 
   let stripeJs = null; // Stripe's script, loaded the first time a card is added
@@ -596,9 +594,7 @@
 
   function renderTelegram() {
     $('tg-connect').textContent = state.telegram ? 'Reconnect' : 'Connect';
-    $('tg-note').textContent = state.telegram
-      ? 'Connected. Telegram messages you 5 minutes before a break ends and again when it ends, even when this app is closed. Nothing to do before each break.'
-      : 'Get a Telegram message 5 minutes before a break ends and again when it ends, even when this app is closed. Needs the Telegram app. You only connect once.';
+    $('tg-note').textContent = state.telegram ? 'Connected. Messages at 40:00 and 45:25.' : 'Messages at 40:00 and 45:25. Connect once.';
     if (tgOpening && state.telegram) {
       tgOpening = false;
       flash('tg-msg', 'Telegram connected', true);
@@ -804,8 +800,8 @@
     $('screen-camera').hidden = false;
     $('cam-msg').textContent =
       mode === 'checkin'
-        ? `Checking in at ${ref.description}. Line up the faded photo with the view, then shoot.`
-        : 'Shoot the fixed scene with no people in it. Pick a distinctive angle with art, furniture or signs. Plain walls and blinds are not enough.';
+        ? `${ref.description}: line up the faded photo, then shoot.`
+        : 'Pick an angle with art, furniture or signs in it. No people.';
     if (!navigator.mediaDevices?.getUserMedia) {
       $('cam-msg').textContent = "This page can't use the camera. Open it from an https address.";
       return;

@@ -85,6 +85,7 @@
   <section id="screen-home" class="screen" hidden>
     <h1 class="large-title">Break Enforcer</h1>
 
+    <div class="home-center">
     <div class="dial idle">
       <svg class="ring" viewBox="0 0 200 200" aria-hidden="true">
         <circle class="ring-track" cx="100" cy="100" r="94"/>
@@ -98,6 +99,7 @@
     <p class="footnote centered" id="start-hint"></p>
     <button class="text-btn centered" id="start-setup" type="button" hidden>Open Settings</button>
     <p class="msg centered" id="home-msg" role="status"></p>
+    </div>
   </section>
 
   <section id="screen-settings" class="screen" hidden>
@@ -110,7 +112,7 @@
       <label class="btn btn-gray file" id="ref-file-label">Choose photo<input type="file" id="ref-file" accept="image/*" hidden></label>
     </div>
     <p class="msg" id="refs-msg" role="status"></p>
-    <p class="footnote">One photo for each place you check in at, from a distinctive angle, with a few words on where it is. When a break ends, you pick the photo of where you are and line up the same shot. Light changes a lot between day and night, so if the AI gets one wrong, add a photo from that time of day. You can't add or delete photos during a break.</p>
+    <p class="footnote">One photo per place. Pick an angle with art, furniture or signs in it.</p>
 
     <h2 class="section-title">Card</h2>
     <ul class="list">
@@ -237,7 +239,7 @@
 <section class="sheet" id="card-sheet" hidden>
   <div class="sheet-card" role="dialog" aria-labelledby="card-sheet-title">
     <h2 class="sheet-title" id="card-sheet-title">Add a card</h2>
-    <p class="sheet-note">Saving a card charges nothing. It's only charged if you miss a check-in.</p>
+    <p class="sheet-note">Saving a card charges nothing.</p>
     <div class="card-form" id="card-form"></div>
     <p class="msg" id="card-sheet-msg" role="status"></p>
     <div class="sheet-actions">

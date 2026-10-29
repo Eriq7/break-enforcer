@@ -322,6 +322,21 @@ button:disabled { cursor: not-allowed; }
 
 .dial.idle .timer { color: var(--label); }
 
+/* Home is only the dial and the start button: they sit in the middle of the screen, under the
+   title. The bottom padding lifts them a little, so they look centred rather than low. */
+#screen-home {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - 44px - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 40px);
+}
+.home-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-bottom: 60px;
+}
+
 /* Photos sit edge to edge in one rounded block, like the Photos grid, each with where it is
    written across the bottom and a ⋯ button in the corner. */
 .refs {
