@@ -168,6 +168,21 @@ begin
   exception when insufficient_privilege then null;
   end;
   begin
+    perform public.be_add_reference_photo(a, 'w', 'x');
+    failed := failed || ' A runs be_add_reference_photo;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.be_describe_reference(a, gen_random_uuid(), 'x');
+    failed := failed || ' A runs be_describe_reference;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.be_record_checkin(a, sa, gen_random_uuid(), 'z', 60);
+    failed := failed || ' A runs be_record_checkin;';
+  exception when insufficient_privilege then null;
+  end;
+  begin
     perform public.be_add_spot(a, 'x');
     failed := failed || ' A runs be_add_spot;';
   exception when insufficient_privilege then null;

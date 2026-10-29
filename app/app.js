@@ -101,11 +101,12 @@
     if (iso) clockOffset = Date.parse(iso) - Date.now();
   }
 
-  const SCREENS = ['loading', 'auth', 'home', 'session'];
+  const SCREENS = ['loading', 'auth', 'home', 'settings', 'session'];
   function show(name) {
     current = name;
     for (const s of SCREENS) $('screen-' + s).hidden = s !== name;
-    $('logout').hidden = name === 'auth' || name === 'loading';
+    $('settings-open').hidden = name !== 'home';
+    $('settings-done').hidden = name !== 'settings';
   }
 
   function flash(id, text, ok = false) {
@@ -135,18 +136,24 @@
     return refreshing;
   }
 
+  let wantSettings = false; // Settings is open and stays open across refreshes
+
   function render() {
     if (state.active) {
       const arriving = current !== 'session';
+      wantSettings = false;
+      $('describe-sheet').hidden = true;
+      $('ref-menu').hidden = true;
       renderSession();
       show('session');
       if (arriving) windUpRing();
       startTicker();
     } else {
       stopTicker();
-      $('spot-picker').hidden = true;
+      $('ref-picker').hidden = true;
       renderHome();
-      show('home');
+      renderSettings();
+      show(wantSettings ? 'settings' : 'home');
     }
   }
 
@@ -206,10 +213,6 @@
     return [s.fail_reason === 'no_pass' ? 'Photo failed' : 'No photo', 'tag-fail'];
   }
 
-  // Spots you can check in at: the ones with at least one photo.
-  const usableSpots = () => state.spots.filter((p) => p.references.length > 0);
-  const photoCount = (n) => (n === 1 ? '1 photo' : n + ' photos');
-
   // Deleting takes two taps. True on the second one.
   function confirmed(button, question) {
     if (button.classList.contains('armed')) return true;
@@ -225,53 +228,34 @@
 
   // ---------- home ----------
 
+  // Just the dial and the start button. Everything else lives in Settings.
   function renderHome() {
-    const latest = state.latest;
-    $('last').hidden = !latest;
-    if (latest) {
-      const passed = latest.status === 'passed';
-      const excused = latest.status === 'excused';
-      $('last-status').textContent = passed ? 'Last break passed' : excused ? "Last break doesn't count" : 'Last break failed';
-      $('last').className = 'last ' + (passed ? 'pass' : excused ? 'excused' : 'fail');
-      const lastAttempt = state.attempts[state.attempts.length - 1];
-      let detail;
-      if (passed) {
-        detail = `First photo at ${clock(latest.first_photo_at, true)}. The deadline was ${clock(latest.deadline_at, true)}.`;
-      } else if (excused) {
-        detail = "The AI check wasn't working when you checked in, so this break doesn't count against you.";
-      } else if (latest.fail_reason === 'no_photo') {
-        detail = `No photo before ${clock(latest.deadline_at, true)}.`;
-      } else {
-        detail = 'No photo passed the check.' + (lastAttempt?.reason ? ` Last one: ${lastAttempt.reason}` : '');
-      }
-      if (!passed && !excused) detail += ' ' + billingLine(latest);
-      $('last-detail').textContent = detail;
-    }
-    watchBilling();
-
     renderStartLabel();
     $('hero-time').textContent = mmss(state.timing.relax * 1000);
     $('hero-sub').textContent = `then ${duration(state.timing.buffer)} to check in`;
-    const hasRefs = usableSpots().length > 0;
+    const hasRefs = state.references.length > 0;
     $('start').disabled = !hasRefs || !state.card;
     $('start-hint').textContent = !hasRefs
-      ? 'Add a check-in spot with a photo below before you start.'
+      ? 'Add a photo of your check-in spot in Settings before you start.'
       : !state.card
-        ? 'Add a card below before you start. Saving it charges nothing.'
+        ? 'Add a card in Settings before you start. Saving it charges nothing.'
         : `Once started, a break can't be cancelled. When it ends, you have ${duration(state.timing.buffer)} to take a photo at your check-in spot.`;
-
-    renderSpots();
-    renderCard();
-    renderTelegram();
-
-    const history = $('history');
-    history.replaceChildren();
-    if (state.history.length === 0) history.append(el('li', {}, el('span', { className: 'dim', textContent: 'Nothing yet' })));
-    for (const s of state.history) {
-      const [text, cls] = sessionTag(s);
-      history.append(el('li', {}, el('span', { className: 'when', textContent: day(s.started_at) }), el('span', { className: cls, textContent: text })));
-    }
+    $('start-setup').hidden = hasRefs && !!state.card;
   }
+
+  function openSettings() {
+    wantSettings = true;
+    show('settings');
+    window.scrollTo(0, 0);
+  }
+
+  $('settings-open').onclick = openSettings;
+  $('start-setup').onclick = openSettings;
+  $('settings-done').onclick = () => {
+    wantSettings = false;
+    show('home');
+    window.scrollTo(0, 0);
+  };
 
   function renderStartLabel() {
     $('start').textContent = 'Start break';
@@ -302,97 +286,199 @@
     }
   };
 
-  // Each spot: its name, its photos, and buttons to add more.
-  function renderSpots() {
-    const box = $('spots');
+  // ---------- settings ----------
+
+  function renderSettings() {
+    renderRefs();
+    renderCard();
+    renderTelegram();
+    renderLast();
+    renderHistory();
+    watchBilling();
+  }
+
+  // The latest break: how it went, and what it cost.
+  function renderLast() {
+    const latest = state.latest;
+    $('last').hidden = !latest;
+    if (!latest) return;
+    const passed = latest.status === 'passed';
+    const excused = latest.status === 'excused';
+    $('last-status').textContent = passed ? 'Last break passed' : excused ? "Last break doesn't count" : 'Last break failed';
+    $('last').className = 'last ' + (passed ? 'pass' : excused ? 'excused' : 'fail');
+    const lastAttempt = state.attempts[state.attempts.length - 1];
+    let detail;
+    if (passed) {
+      detail = `First photo at ${clock(latest.first_photo_at, true)}. The deadline was ${clock(latest.deadline_at, true)}.`;
+    } else if (excused) {
+      detail = "The AI check wasn't working when you checked in, so this break doesn't count against you.";
+    } else if (latest.fail_reason === 'no_photo') {
+      detail = `No photo before ${clock(latest.deadline_at, true)}.`;
+    } else {
+      detail = 'No photo passed the check.' + (lastAttempt?.reason ? ` Last one: ${lastAttempt.reason}` : '');
+    }
+    if (!passed && !excused) detail += ' ' + billingLine(latest);
+    $('last-detail').textContent = detail;
+  }
+
+  function renderHistory() {
+    const history = $('history');
+    history.replaceChildren();
+    if (state.history.length === 0) history.append(el('li', {}, el('span', { className: 'dim', textContent: 'Nothing yet' })));
+    for (const s of state.history) {
+      const [text, cls] = sessionTag(s);
+      history.append(el('li', {}, el('span', { className: 'when', textContent: day(s.started_at) }), el('span', { className: cls, textContent: text })));
+    }
+  }
+
+  // ---------- check-in photos ----------
+
+  const photosFull = () => state.references.length >= state.max_references;
+
+  // Each photo with its description underneath and a ⋯ button for the rest.
+  function renderRefs() {
+    const box = $('refs');
     box.replaceChildren();
-    if (state.spots.length === 0) {
-      box.append(el('div', { className: 'refs-empty spots-empty', textContent: 'No check-in spots yet. Name one below, then add a photo of it.' }));
+    if (state.references.length === 0) {
+      box.append(el('div', { className: 'refs-empty', textContent: 'No check-in photos yet. Go to the place you will check in at and take one.' }));
     }
-    for (const spot of state.spots) {
-      const refs = el('div', { className: 'refs' });
-      if (spot.references.length === 0) refs.append(el('div', { className: 'refs-empty', textContent: 'No photos yet' }));
-      for (const r of spot.references) {
-        const del = el('button', { type: 'button', textContent: 'Delete' });
-        del.onclick = () => deleteReference(r.id, del);
-        refs.append(el('div', { className: 'ref' }, el('img', { src: r.url || '', alt: 'Reference photo', loading: 'lazy' }), del));
-      }
-      const full = spot.references.length >= 6;
-      const camera = el('button', { type: 'button', className: 'btn btn-gray', textContent: 'Take photo', disabled: full });
-      camera.onclick = () => openCamera('reference', spot);
-      const file = el('input', { type: 'file', accept: 'image/*', hidden: true, disabled: full });
-      file.onchange = (ev) => chooseReference(ev, spot);
-      const delSpot = el('button', { type: 'button', className: 'text-btn', textContent: 'Delete spot' });
-      delSpot.onclick = () => deleteSpot(spot.id, delSpot);
-      box.append(
-        el('div', { className: 'spot' },
-          el('div', { className: 'spot-head' }, el('h3', { className: 'spot-name', textContent: spot.name }), delSpot),
-          refs,
-          el('div', { className: 'row' }, camera, el('label', { className: 'btn btn-gray file' }, 'Choose photo', file)),
-        ),
-      );
+    for (const r of state.references) {
+      const open = el('button', { type: 'button', className: 'ref-open', title: 'View photo' }, el('img', { src: r.url || '', alt: r.description, loading: 'lazy' }));
+      open.onclick = () => peek(r.url);
+      const more = el('button', { type: 'button', className: 'ref-more', title: 'More' }, dotsIcon());
+      more.setAttribute('aria-label', 'More options for ' + r.description);
+      more.onclick = () => openRefMenu(r);
+      box.append(el('div', { className: 'ref' }, open, more, el('span', { className: 'ref-caption', textContent: r.description })));
     }
+    const full = photosFull();
+    $('ref-camera').disabled = full;
+    $('ref-file').disabled = full;
+    $('ref-file-label').classList.toggle('disabled', full);
   }
 
-  $('add-spot').onsubmit = async (ev) => {
-    ev.preventDefault();
-    const name = $('spot-name').value.trim();
-    if (!name) return flash('spots-msg', 'Give the spot a name first');
-    $('add-spot-btn').disabled = true;
-    try {
-      await cloud.api('POST', 'spots', { name });
-      $('spot-name').value = '';
-      await refresh();
-      flash('spots-msg', `Added ${name}. Now add a photo of it.`, true);
-    } catch (e) {
-      flash('spots-msg', e.message);
-    } finally {
-      $('add-spot-btn').disabled = false;
+  function dotsIcon() {
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('aria-hidden', 'true');
+    for (const cx of [5.5, 12, 18.5]) {
+      const dot = document.createElementNS(ns, 'circle');
+      dot.setAttribute('cx', cx);
+      dot.setAttribute('cy', 12);
+      dot.setAttribute('r', 2);
+      svg.append(dot);
     }
-  };
-
-  async function deleteSpot(id, button) {
-    if (!confirmed(button, 'Delete it and its photos?')) return;
-    button.disabled = true;
-    try {
-      await cloud.api('DELETE', 'spots?id=' + encodeURIComponent(id));
-      await refresh();
-    } catch (e) {
-      flash('spots-msg', e.message);
-      button.disabled = false;
-    }
+    return svg;
   }
 
-  async function deleteReference(id, button) {
-    if (!confirmed(button, 'Delete?')) return;
-    button.disabled = true;
-    try {
-      await cloud.api('DELETE', 'references?id=' + encodeURIComponent(id));
-      await refresh();
-    } catch (e) {
-      flash('spots-msg', e.message);
-      button.disabled = false;
-    }
+  function peek(url) {
+    if (!url) return;
+    $('peek-img').src = url;
+    $('peek').hidden = false;
   }
 
-  async function saveReference(dataUrl, spot) {
-    await cloud.api('POST', 'references', { spot_id: spot.id, image: dataUrl.split(',')[1] });
-    await refresh();
-    flash('spots-msg', `Photo saved to ${spot.name}`, true);
-  }
+  $('ref-camera').onclick = () => openCamera('reference');
 
-  // Picking from the album is fine for the reference; check-ins only ever use the live camera.
-  async function chooseReference(ev, spot) {
+  // Picking from the album is fine for a reference; check-ins only ever use the live camera.
+  $('ref-file').onchange = async (ev) => {
     const file = ev.target.files[0];
     ev.target.value = '';
     if (!file) return;
-    flash('spots-msg', 'Saving…', true);
+    flash('refs-msg', '');
     try {
-      await saveReference(await fileToJpeg(file), spot);
+      openDescribe({ image: await fileToJpeg(file) });
     } catch (e) {
-      flash('spots-msg', e.message);
+      flash('refs-msg', e.message);
     }
+  };
+
+  // The ⋯ menu of one photo.
+  let menuRef = null;
+
+  function openRefMenu(ref) {
+    menuRef = ref;
+    $('ref-menu-title').textContent = ref.description;
+    $('ref-menu-delete').classList.remove('armed');
+    $('ref-menu-delete').textContent = 'Delete photo';
+    flash('ref-menu-msg', '');
+    $('ref-menu').hidden = false;
   }
+
+  function closeRefMenu() {
+    $('ref-menu').hidden = true;
+    menuRef = null;
+  }
+
+  $('ref-menu-cancel').onclick = closeRefMenu;
+  $('ref-menu').onclick = (ev) => {
+    if (ev.target === $('ref-menu')) closeRefMenu();
+  };
+  $('ref-menu-view').onclick = () => {
+    const ref = menuRef;
+    closeRefMenu();
+    peek(ref.url);
+  };
+  $('ref-menu-edit').onclick = () => {
+    const ref = menuRef;
+    closeRefMenu();
+    openDescribe({ ref });
+  };
+  $('ref-menu-delete').onclick = async () => {
+    const button = $('ref-menu-delete');
+    if (!confirmed(button, 'Tap again to delete')) return;
+    button.disabled = true;
+    try {
+      await cloud.api('DELETE', 'references?id=' + encodeURIComponent(menuRef.id));
+      closeRefMenu();
+      await refresh();
+      flash('refs-msg', 'Photo deleted', true);
+    } catch (e) {
+      flash('ref-menu-msg', e.message);
+    } finally {
+      button.disabled = false;
+    }
+  };
+
+  // Saying where a photo is: right after taking or choosing a new one ({ image }: its JPEG data
+  // URL, not saved until this goes through), or changing an existing one ({ ref }).
+  let describing = null;
+
+  function openDescribe(job) {
+    describing = job;
+    $('describe-title').textContent = job.ref ? 'Edit description' : 'Where is this?';
+    $('describe-preview').src = job.ref ? job.ref.url || '' : job.image;
+    $('describe-input').value = job.ref ? job.ref.description : '';
+    flash('describe-msg', '');
+    $('describe-sheet').hidden = false;
+  }
+
+  function closeDescribe() {
+    $('describe-sheet').hidden = true;
+    describing = null;
+  }
+
+  $('describe-cancel').onclick = closeDescribe;
+
+  $('describe-form').onsubmit = async (ev) => {
+    ev.preventDefault();
+    const job = describing;
+    if (!job) return;
+    const description = $('describe-input').value.trim();
+    if (!description) return flash('describe-msg', 'Say where this is, like "7th floor room"');
+    $('describe-save').disabled = true;
+    flash('describe-msg', 'Saving…', true);
+    try {
+      if (job.ref) await cloud.api('PATCH', 'references', { id: job.ref.id, description });
+      else await cloud.api('POST', 'references', { image: job.image.split(',')[1], description });
+      closeDescribe();
+      await refresh();
+      flash('refs-msg', job.ref ? 'Description saved' : 'Photo saved', true);
+    } catch (e) {
+      flash('describe-msg', e.message);
+    } finally {
+      $('describe-save').disabled = false;
+    }
+  };
 
   // ---------- card ----------
 
@@ -511,8 +597,8 @@
   function renderTelegram() {
     $('tg-connect').textContent = state.telegram ? 'Reconnect' : 'Connect';
     $('tg-note').textContent = state.telegram
-      ? 'Connected. Telegram messages you 5 minutes before a break ends, even when this app is closed.'
-      : 'Get a Telegram message 5 minutes before a break ends, even when this app is closed. Needs the Telegram app.';
+      ? 'Connected. Telegram messages you 5 minutes before a break ends and again when it ends, even when this app is closed. Nothing to do before each break.'
+      : 'Get a Telegram message 5 minutes before a break ends and again when it ends, even when this app is closed. Needs the Telegram app. You only connect once.';
     if (tgOpening && state.telegram) {
       tgOpening = false;
       flash('tg-msg', 'Telegram connected', true);
@@ -571,7 +657,7 @@
     box.hidden = !last;
     if (last) {
       box.className = 'result ' + last.verdict;
-      const where = state.spots.length > 1 ? state.spots.find((p) => p.id === last.spot_id)?.name : null;
+      const where = state.references.length > 1 ? state.references.find((r) => r.id === last.reference_id)?.description : null;
       $('attempt-title').textContent = (VERDICT_TEXT[last.verdict] || last.verdict) + (where ? ' · ' + where : '');
       $('attempt-reason').textContent = last.reason || '';
     }
@@ -585,19 +671,8 @@
         ),
       );
     }
-    const spots = usableSpots();
-    const group = $('session-spots');
-    group.replaceChildren();
-    for (const spot of spots) {
-      const row = el('div', { className: 'session-refs-row' });
-      renderRefRow(row, spot.references, (ref) => {
-        $('peek-img').src = ref.url;
-        $('peek').hidden = false;
-      });
-      if (spots.length > 1) group.append(el('p', { className: 'spot-label', textContent: spot.name }));
-      group.append(row);
-    }
-    $('session-refs').hidden = spots.length === 0;
+    renderRefRow($('session-refs-row'), state.references, (ref) => peek(ref.url));
+    $('session-refs').hidden = state.references.length === 0;
     flash('session-msg', '');
     tick();
   }
@@ -606,7 +681,7 @@
   function renderRefRow(row, refs, onPick) {
     row.replaceChildren();
     for (const ref of refs) {
-      const button = el('button', { type: 'button', title: 'Reference photo' }, el('img', { src: ref.url || '', alt: 'Reference photo' }));
+      const button = el('button', { type: 'button', title: ref.description }, el('img', { src: ref.url || '', alt: ref.description }));
       button.onclick = () => onPick(ref, button);
       row.append(button);
     }
@@ -677,56 +752,60 @@
     }
   }
 
-  // With more than one spot, ask where the user is. The AI only compares with that spot's photos.
+  // With more than one photo, ask which one the user is standing at. The AI compares with that one only.
   $('arrived').onclick = () => {
-    const spots = usableSpots();
-    if (spots.length === 1) return openCamera('checkin', spots[0]);
-    const list = $('spot-picks');
+    const refs = state.references;
+    if (refs.length === 1) return openCamera('checkin', refs[0]);
+    const list = $('ref-picks');
     list.replaceChildren();
-    for (const spot of spots) {
+    for (const ref of refs) {
       const pick = el('button', { type: 'button', className: 'pick' },
-        el('img', { src: spot.references[0].url || '', alt: '' }),
-        el('span', { className: 'pick-name', textContent: spot.name }),
-        el('span', { className: 'pick-meta', textContent: photoCount(spot.references.length) }),
+        el('img', { src: ref.url || '', alt: '' }),
+        el('span', { className: 'pick-name', textContent: ref.description }),
       );
       pick.onclick = () => {
-        $('spot-picker').hidden = true;
-        openCamera('checkin', spot);
+        $('ref-picker').hidden = true;
+        openCamera('checkin', ref);
       };
       list.append(el('li', {}, pick));
     }
-    $('spot-picker').hidden = false;
+    $('ref-picker').hidden = false;
   };
 
-  $('spot-picker-cancel').onclick = () => {
-    $('spot-picker').hidden = true;
+  $('ref-picker-cancel').onclick = () => {
+    $('ref-picker').hidden = true;
   };
-  $('spot-picker').onclick = (ev) => {
-    if (ev.target === $('spot-picker')) $('spot-picker').hidden = true;
+  $('ref-picker').onclick = (ev) => {
+    if (ev.target === $('ref-picker')) $('ref-picker').hidden = true;
   };
 
   // ---------- camera ----------
 
   let stream = null;
   let camMode = null;
-  let camSpot = null; // the spot this photo is for
+  let camRef = null; // the photo a check-in is matched against
   let shot = null;
   let ghostUrl = null; // the reference laid over the viewfinder, if any
   let camGuide = false; // whether reference thumbnails are offered in the viewfinder
 
-  async function openCamera(mode, spot) {
+  async function openCamera(mode, ref = null) {
     camMode = mode;
-    camSpot = spot;
+    camRef = ref;
     shot = null;
-    ghostUrl = null;
-    camGuide = mode === 'checkin' && spot.references.length > 0;
-    if (camGuide) renderRefRow($('cam-refs-row'), spot.references, toggleGhost);
+    // A check-in starts with the picked photo laid over the view, to line up the same shot.
+    ghostUrl = mode === 'checkin' ? ref.url || null : null;
+    camGuide = !!ghostUrl;
+    if (camGuide) {
+      $('ghost').src = ghostUrl;
+      renderRefRow($('cam-refs-row'), [ref], toggleGhost);
+      $('cam-refs-row').firstChild.classList.add('on');
+    }
     camUi('live');
     $('screen-camera').hidden = false;
     $('cam-msg').textContent =
       mode === 'checkin'
-        ? `Checking in at ${spot.name}. Match the angle of a reference photo: tap one at the bottom left to lay it over the view, line it up, then shoot.`
-        : `Photo for ${spot.name}. Shoot the fixed scene with no people in it. Pick a distinctive angle with art, furniture or signs. Plain walls and blinds are not enough.`;
+        ? `Checking in at ${ref.description}. Line up the faded photo with the view, then shoot.`
+        : 'Shoot the fixed scene with no people in it. Pick a distinctive angle with art, furniture or signs. Plain walls and blinds are not enough.';
     if (!navigator.mediaDevices?.getUserMedia) {
       $('cam-msg').textContent = "This page can't use the camera. Open it from an https address.";
       return;
@@ -794,22 +873,17 @@
   $('cam-cancel').onclick = closeCamera;
 
   $('cam-use').onclick = async () => {
-    camUi('busy');
     if (camMode === 'reference') {
-      $('cam-msg').textContent = 'Saving…';
-      try {
-        await saveReference(shot, camSpot);
-        closeCamera();
-      } catch (e) {
-        $('cam-msg').textContent = e.message;
-        camUi('shot');
-      }
+      const image = shot;
+      closeCamera();
+      openDescribe({ image });
       return;
     }
+    camUi('busy');
 
     $('cam-msg').textContent = 'The AI is checking. A few seconds…';
     try {
-      const r = await cloud.api('POST', 'photo', { session_id: state.active.id, spot_id: camSpot.id, image: shot.split(',')[1] });
+      const r = await cloud.api('POST', 'photo', { session_id: state.active.id, reference_id: camRef.id, image: shot.split(',')[1] });
       syncClock(r.server_now);
       closeCamera();
       await refresh();
@@ -862,7 +936,10 @@
     stopTicker();
     closeCamera();
     closeCardSheet();
-    $('spot-picker').hidden = true;
+    closeDescribe();
+    closeRefMenu();
+    $('ref-picker').hidden = true;
+    wantSettings = false;
     state = null;
     show('auth');
     $('auth-tabs').hidden = false;

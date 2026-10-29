@@ -3,7 +3,8 @@
 -- Walks the judging rules through the be_* functions as the server (service_role):
 -- 50:25 deadline, first photo stops the clock, retakes, reference lock, overdue sessions failing,
 -- check-in spots (each has its own photos, a check-in names the spot it is compared with),
--- Telegram: link codes, and the reminder at 40:00 going out once to the right breaks,
+-- reference photos with descriptions (a check-in names the one photo it is compared with),
+-- Telegram: link codes, and the reminders at 40:00 and 45:25 going out once to the right breaks,
 -- and payments: a card is needed to start, the card is locked while a break runs or waits to be
 -- charged, failed breaks (only those) become due, claims, charge rows, and holds coming due.
 -- now() is frozen inside one transaction, so the time-based cases use back-dated rows.
@@ -12,6 +13,7 @@ declare
   a uuid := gen_random_uuid();
   b uuid := gen_random_uuid();
   c uuid := gen_random_uuid();
+  d uuid := gen_random_uuid();
   sp public.spots;
   csp public.spots;
   empty_spot public.spots;
@@ -24,6 +26,7 @@ declare
   ch public.charges;
   att public.photo_attempts;
   ref public.reference_photos;
+  dref public.reference_photos;
   n int;
   failed text := '';
 begin
@@ -35,7 +38,8 @@ begin
   insert into auth.users (id, email, aud, role) values
     (a, 'logic-a@example.invalid', 'authenticated', 'authenticated'),
     (b, 'logic-b@example.invalid', 'authenticated', 'authenticated'),
-    (c, 'logic-c@example.invalid', 'authenticated', 'authenticated');
+    (c, 'logic-c@example.invalid', 'authenticated', 'authenticated'),
+    (d, 'logic-d@example.invalid', 'authenticated', 'authenticated');
   execute 'set local role service_role';
 
   -- No reference photo yet: cannot start.
@@ -279,10 +283,33 @@ begin
   select count(*) into n from public.be_due_reminders() where chat_id = 111;
   if n <> 0 then failed := failed || ' reminded after a photo;'; end if;
   update public.sessions set status = 'passed' where id = s.id;
-  insert into public.sessions (user_id, started_at, relax_ends_at, deadline_at)
-  values (a, now() - interval '46 minutes', now() - interval '1 minute', now() + interval '4 minutes') returning * into s;
+
+  -- Break over, photo not in yet: the second message, once, with the minutes rounded down.
+  insert into public.sessions (user_id, started_at, relax_ends_at, deadline_at, warned_at)
+  values (a, now() - interval '46 minutes', now() - interval '25 seconds', now() + interval '4 minutes 35 seconds', now() - interval '6 minutes') returning * into s;
+  n := 0;
+  msg := null;
+  for r in select * from public.be_due_reminders() loop
+    if r.chat_id = 111 then n := n + 1; msg := r.message; end if;
+  end loop;
+  if n <> 1 then failed := failed || ' break-over message not sent once;'; end if;
+  if msg is distinct from 'Your break is over. Take your check-in photo in the next 4 minutes.' then
+    failed := failed || ' break-over text: ' || coalesce(msg, 'none') || ';';
+  end if;
   select count(*) into n from public.be_due_reminders() where chat_id = 111;
-  if n <> 0 then failed := failed || ' reminded after the break;'; end if;
+  if n <> 0 then failed := failed || ' break-over message sent twice;'; end if;
+  update public.sessions set status = 'passed' where id = s.id;
+
+  -- Past 50:25, or the photo already in: no break-over message.
+  insert into public.sessions (user_id, started_at, relax_ends_at, deadline_at)
+  values (a, now() - interval '51 minutes', now() - interval '6 minutes', now() - interval '1 minute') returning * into s;
+  select count(*) into n from public.be_due_reminders() where chat_id = 111;
+  if n <> 0 then failed := failed || ' break-over message after the deadline;'; end if;
+  update public.sessions set status = 'passed' where id = s.id;
+  insert into public.sessions (user_id, started_at, relax_ends_at, deadline_at, first_photo_at, retake_until)
+  values (a, now() - interval '47 minutes', now() - interval '2 minutes', now() + interval '3 minutes', now(), now() + interval '150 seconds') returning * into s;
+  select count(*) into n from public.be_due_reminders() where chat_id = 111;
+  if n <> 0 then failed := failed || ' break-over message after a photo;'; end if;
   update public.sessions set status = 'passed' where id = s.id;
 
   -- No Telegram linked: nothing to send, and the break stays unmarked.
@@ -299,6 +326,68 @@ begin
   if public.be_send_reminders() < 1 then failed := failed || ' sender sent nothing;'; end if;
   select * into s from public.sessions where id = s.id;
   if s.warned_at is null then failed := failed || ' sender did not mark the break;'; end if;
+
+  -- Reference photos with descriptions. The description is trimmed and required.
+  dref := public.be_add_reference_photo(d, d || '/refs/p1.jpg', '  7th floor room  ');
+  if dref.description <> '7th floor room' or dref.spot_id is not null then failed := failed || ' photo description not saved;'; end if;
+  begin
+    perform public.be_add_reference_photo(d, d || '/refs/p0.jpg', '   ');
+    failed := failed || ' photo saved with no description;';
+  exception when others then
+    if sqlerrm <> 'bad_description' then failed := failed || ' bad_description? ' || sqlerrm || ';'; end if;
+  end;
+  begin
+    perform public.be_describe_reference(d, dref.id, repeat('x', 61));
+    failed := failed || ' 61 character description;';
+  exception when others then
+    if sqlerrm <> 'bad_description' then failed := failed || ' bad_description(long)? ' || sqlerrm || ';'; end if;
+  end;
+  select * into ref from public.reference_photos where user_id = b limit 1;
+  begin
+    perform public.be_describe_reference(d, ref.id, 'mine now');
+    failed := failed || ' described someone else''s photo;';
+  exception when others then
+    if sqlerrm <> 'reference_not_found' then failed := failed || ' reference_not_found(describe)? ' || sqlerrm || ';'; end if;
+  end;
+
+  -- During a break: no new photos, but the description can change.
+  s := public.be_start_session(d, 2725, 300);
+  begin
+    perform public.be_add_reference_photo(d, d || '/refs/couch.jpg', 'Couch');
+    failed := failed || ' photo added during session;';
+  exception when others then
+    if sqlerrm <> 'locked_during_session' then failed := failed || ' lock(add photo)? ' || sqlerrm || ';'; end if;
+  end;
+  dref := public.be_describe_reference(d, dref.id, 'Amenity room');
+  if dref.description <> 'Amenity room' then failed := failed || ' description not changed during session;'; end if;
+
+  -- A check-in names one of your own photos. Someone else's is refused before the clock stops.
+  begin
+    perform public.be_record_checkin(d, s.id, ref.id, d || '/attempts/x.jpg', 150);
+    failed := failed || ' check-in against someone else''s photo;';
+  exception when others then
+    if sqlerrm <> 'reference_not_found' then failed := failed || ' reference_not_found(checkin)? ' || sqlerrm || ';'; end if;
+  end;
+  select * into s from public.sessions where id = s.id;
+  if s.first_photo_at is not null then failed := failed || ' refused photo stopped the clock;'; end if;
+  att := public.be_record_checkin(d, s.id, dref.id, d || '/attempts/1.jpg', 150);
+  if att.reference_id is distinct from dref.id then failed := failed || ' attempt does not name its photo;'; end if;
+  select * into s from public.sessions where id = s.id;
+  if s.first_photo_at is null or s.retake_until - s.first_photo_at <> interval '150 seconds' then
+    failed := failed || ' check-in did not stop the clock;';
+  end if;
+  update public.sessions set status = 'passed' where id = s.id;
+
+  -- At most 12 photos per person.
+  for i in 2..12 loop
+    perform public.be_add_reference_photo(d, d || '/refs/p' || i || '.jpg', 'Spot ' || i);
+  end loop;
+  begin
+    perform public.be_add_reference_photo(d, d || '/refs/p13.jpg', 'One too many');
+    failed := failed || ' 13th photo;';
+  exception when others then
+    if sqlerrm <> 'too_many_references' then failed := failed || ' too_many_references(photos)? ' || sqlerrm || ';'; end if;
+  end;
 
   -- Payments. Starting needs a saved card in the server's Stripe mode; a customer alone isn't one.
   csp := public.be_add_spot(c, 'C room');

@@ -21,7 +21,10 @@
 <body>
 <main class="shell">
   <header class="bar">
-    <button class="text-btn" id="logout" type="button" hidden>Log out</button>
+    <button class="icon-btn" id="settings-open" type="button" aria-label="Settings" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+    <button class="text-btn done" id="settings-done" type="button" hidden>Done</button>
   </header>
 
   <section id="screen-loading" class="screen loading">
@@ -82,18 +85,6 @@
   <section id="screen-home" class="screen" hidden>
     <h1 class="large-title">Break Enforcer</h1>
 
-    <div class="last" id="last" hidden>
-      <span class="last-icon" aria-hidden="true">
-        <svg class="glyph-pass" viewBox="0 0 24 24"><path d="M6.5 12.5l3.5 3.5 7.5-8"/></svg>
-        <svg class="glyph-fail" viewBox="0 0 24 24"><path d="M8 8l8 8M16 8l-8 8"/></svg>
-        <svg class="glyph-excused" viewBox="0 0 24 24"><path d="M7 12h10"/></svg>
-      </span>
-      <div>
-        <p class="last-status" id="last-status"></p>
-        <p class="last-detail" id="last-detail"></p>
-      </div>
-    </div>
-
     <div class="dial idle">
       <svg class="ring" viewBox="0 0 200 200" aria-hidden="true">
         <circle class="ring-track" cx="100" cy="100" r="94"/>
@@ -105,18 +96,21 @@
     </div>
     <button class="btn btn-primary btn-large" id="start" type="button">Start break</button>
     <p class="footnote centered" id="start-hint"></p>
+    <button class="text-btn centered" id="start-setup" type="button" hidden>Open Settings</button>
     <p class="msg centered" id="home-msg" role="status"></p>
+  </section>
 
-    <h2 class="section-title">Check-in spots</h2>
-    <div id="spots"></div>
-    <form class="add-spot" id="add-spot" novalidate>
-      <div class="fields">
-        <input id="spot-name" placeholder="New spot, e.g. 7th floor room" aria-label="New spot name" maxlength="40" autocomplete="off" enterkeyhint="done">
-      </div>
-      <button class="btn btn-gray" type="submit" id="add-spot-btn">Add</button>
-    </form>
-    <p class="msg" id="spots-msg" role="status"></p>
-    <p class="footnote">Add one spot for each place you go to check in, like a study room at each home. When a break ends, you pick where you are, and the AI compares your photo with that spot's photos only. Light changes a lot between day and night, so if it gets one wrong, add a photo from that time of day. You can't change spots while a break is running.</p>
+  <section id="screen-settings" class="screen" hidden>
+    <h1 class="large-title">Settings</h1>
+
+    <h2 class="section-title first">Check-in photos</h2>
+    <div class="refs" id="refs"></div>
+    <div class="row">
+      <button class="btn btn-gray" id="ref-camera" type="button">Take photo</button>
+      <label class="btn btn-gray file" id="ref-file-label">Choose photo<input type="file" id="ref-file" accept="image/*" hidden></label>
+    </div>
+    <p class="msg" id="refs-msg" role="status"></p>
+    <p class="footnote">One photo for each place you check in at, from a distinctive angle, with a few words on where it is. When a break ends, you pick the photo of where you are and line up the same shot. Light changes a lot between day and night, so if the AI gets one wrong, add a photo from that time of day. You can't add or delete photos during a break.</p>
 
     <h2 class="section-title">Card</h2>
     <ul class="list">
@@ -133,7 +127,22 @@
     <p class="footnote" id="tg-note"></p>
 
     <h2 class="section-title">Recent</h2>
+    <div class="last" id="last" hidden>
+      <span class="last-icon" aria-hidden="true">
+        <svg class="glyph-pass" viewBox="0 0 24 24"><path d="M6.5 12.5l3.5 3.5 7.5-8"/></svg>
+        <svg class="glyph-fail" viewBox="0 0 24 24"><path d="M8 8l8 8M16 8l-8 8"/></svg>
+        <svg class="glyph-excused" viewBox="0 0 24 24"><path d="M7 12h10"/></svg>
+      </span>
+      <div>
+        <p class="last-status" id="last-status"></p>
+        <p class="last-detail" id="last-detail"></p>
+      </div>
+    </div>
     <ol class="list" id="history"></ol>
+
+    <ul class="list signout">
+      <li><button class="text-btn danger" id="logout" type="button">Log out</button></li>
+    </ul>
   </section>
 
   <section id="screen-session" class="screen session" hidden>
@@ -162,8 +171,8 @@
     <p class="msg centered" id="session-msg" role="status"></p>
 
     <div class="session-refs" id="session-refs" hidden>
-      <h2 class="section-title">Match this shot</h2>
-      <div id="session-spots"></div>
+      <h2 class="section-title">Your check-in photos</h2>
+      <div class="session-refs-row" id="session-refs-row"></div>
     </div>
     <ol class="list attempts" id="attempts"></ol>
   </section>
@@ -175,7 +184,7 @@
     <img id="ghost" class="ghost" alt="" hidden>
     <img id="still" alt="The photo you just took" hidden>
     <div class="cam-refs" id="cam-refs" hidden>
-      <span>Tap a reference to line it up</span>
+      <span>Tap to show or hide the faded photo</span>
       <div class="cam-refs-row" id="cam-refs-row"></div>
     </div>
   </div>
@@ -189,11 +198,39 @@
   </div>
 </section>
 
-<section class="sheet" id="spot-picker" hidden>
-  <div class="sheet-card" role="dialog" aria-labelledby="spot-picker-title">
-    <h2 class="sheet-title" id="spot-picker-title">Where are you checking in?</h2>
-    <ul class="list picks" id="spot-picks"></ul>
-    <button class="btn btn-gray" id="spot-picker-cancel" type="button">Cancel</button>
+<section class="sheet" id="ref-picker" hidden>
+  <div class="sheet-card" role="dialog" aria-labelledby="ref-picker-title">
+    <h2 class="sheet-title" id="ref-picker-title">Where are you?</h2>
+    <ul class="list picks" id="ref-picks"></ul>
+    <button class="btn btn-gray" id="ref-picker-cancel" type="button">Cancel</button>
+  </div>
+</section>
+
+<section class="sheet" id="describe-sheet" hidden>
+  <form class="sheet-card" id="describe-form" role="dialog" aria-labelledby="describe-title" novalidate>
+    <h2 class="sheet-title" id="describe-title">Where is this?</h2>
+    <img class="describe-preview" id="describe-preview" alt="">
+    <div class="fields">
+      <input id="describe-input" placeholder="e.g. 7th floor room" aria-label="Where this photo was taken" maxlength="60" autocomplete="off" enterkeyhint="done">
+    </div>
+    <p class="msg" id="describe-msg" role="status"></p>
+    <div class="sheet-actions">
+      <button class="btn btn-primary" id="describe-save" type="submit">Save</button>
+      <button class="btn btn-gray" id="describe-cancel" type="button">Cancel</button>
+    </div>
+  </form>
+</section>
+
+<section class="sheet" id="ref-menu" hidden>
+  <div class="sheet-card" role="dialog" aria-labelledby="ref-menu-title">
+    <h2 class="sheet-title" id="ref-menu-title"></h2>
+    <ul class="list menu">
+      <li><button type="button" id="ref-menu-view">View photo</button></li>
+      <li><button type="button" id="ref-menu-edit">Edit description</button></li>
+      <li><button type="button" class="danger" id="ref-menu-delete">Delete photo</button></li>
+    </ul>
+    <p class="msg" id="ref-menu-msg" role="status"></p>
+    <button class="btn btn-gray" id="ref-menu-cancel" type="button">Cancel</button>
   </div>
 </section>
 

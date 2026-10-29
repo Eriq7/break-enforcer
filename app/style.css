@@ -57,6 +57,21 @@ p { margin: 0; }
   align-items: center;
   height: 44px;
 }
+/* The gear that opens Settings, drawn in the accent colour like an iOS bar button. */
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-right: -10px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--orange);
+}
+.icon-btn svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.icon-btn:active { opacity: 0.5; }
+.text-btn.done { font-weight: 600; }
 
 :focus-visible { outline: 3px solid rgba(255, 159, 10, 0.55); outline-offset: 2px; }
 
@@ -75,6 +90,7 @@ p { margin: 0; }
   line-height: 28px;
   font-weight: 700;
 }
+.section-title.first { margin-top: 8px; }
 
 .footnote {
   margin: 10px 16px 0;
@@ -131,6 +147,8 @@ button:disabled { cursor: not-allowed; }
 .row .btn { flex: 1; min-width: 0; padding-inline: 12px; }
 .row.spread { justify-content: space-between; margin-top: 6px; }
 .file { margin: 0; cursor: pointer; }
+.file.disabled { opacity: 0.3; pointer-events: none; }
+.text-btn.danger { color: var(--red); }
 
 /* ---------- loading ---------- */
 
@@ -275,13 +293,13 @@ button:disabled { cursor: not-allowed; }
 }
 .bell { width: 14px; height: 14px; fill: currentColor; }
 
-/* ---------- home ---------- */
+/* ---------- settings ---------- */
 
 .last {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 12px;
-  margin-bottom: 28px;
+  margin-bottom: 12px;
   padding: 14px 16px;
   background: var(--cell);
   border-radius: var(--radius);
@@ -304,33 +322,50 @@ button:disabled { cursor: not-allowed; }
 
 .dial.idle .timer { color: var(--label); }
 
-/* Photos sit edge to edge in one rounded block, like the Photos grid. */
+/* Photos sit edge to edge in one rounded block, like the Photos grid, each with where it is
+   written across the bottom and a ⋯ button in the corner. */
 .refs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 2px;
   margin-bottom: 12px;
   border-radius: var(--radius);
   overflow: hidden;
 }
 .ref { position: relative; aspect-ratio: 3 / 4; background: var(--cell); }
-.ref img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.ref button {
+.ref-open { display: block; width: 100%; height: 100%; padding: 0; background: none; border: 0; }
+.ref-open img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ref-more {
   position: absolute;
-  right: 6px;
-  bottom: 6px;
-  padding: 4px 10px;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   background: rgba(0, 0, 0, 0.45);
   -webkit-backdrop-filter: blur(16px) saturate(180%);
   backdrop-filter: blur(16px) saturate(180%);
-  color: var(--label);
   border: 0;
-  border-radius: 999px;
-  font-size: 13px;
-  line-height: 18px;
-  font-weight: 500;
+  border-radius: 50%;
+  color: var(--label);
 }
-.ref button.armed { background: var(--red); color: #fff; }
+.ref-more svg { width: 18px; height: 18px; fill: currentColor; }
+.ref-more:active { opacity: 0.6; }
+.ref-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 28px 10px 9px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
+  font-size: 13px;
+  line-height: 17px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
 .refs-empty {
   grid-column: 1 / -1;
   padding: 32px 16px;
@@ -339,18 +374,10 @@ button:disabled { cursor: not-allowed; }
   font-size: 15px;
   color: var(--label-2);
 }
-
-/* One block per check-in spot: its name, its photos, buttons to add more. */
-.spot + .spot { margin-top: 28px; }
-.spot-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 4px 8px; }
-.spot-name { margin: 0; font-size: 17px; line-height: 22px; font-weight: 600; overflow-wrap: anywhere; }
-.spot-head .text-btn { flex: none; padding: 6px 0; margin: -6px 0; font-size: 15px; line-height: 20px; }
 .text-btn.armed { color: var(--red); }
-.spots-empty { border-radius: var(--radius); }
 
-.add-spot { display: flex; gap: 10px; margin-top: 28px; }
-.add-spot .fields { flex: 1; min-width: 0; margin: 0; }
-.add-spot .btn { width: auto; flex: none; }
+.signout { margin-top: 36px; }
+.signout li { justify-content: center; padding: 0 16px; }
 
 /* Inset grouped list with hairlines that start at the text, not the edge. */
 .list { list-style: none; margin: 0; padding: 0; background: var(--cell); border-radius: var(--radius); overflow: hidden; }
@@ -392,7 +419,7 @@ button:disabled { cursor: not-allowed; }
 .result.fail .result-title, .result.error .result-title { color: var(--red); }
 
 .session-refs .section-title { margin-top: 32px; }
-.session-refs-row, .cam-refs-row { display: flex; gap: 8px; }
+.session-refs-row, .cam-refs-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .session-refs-row button, .cam-refs-row button {
   padding: 0;
   overflow: hidden;
@@ -401,8 +428,6 @@ button:disabled { cursor: not-allowed; }
   border-radius: 10px;
 }
 .session-refs-row button { width: 96px; height: 128px; }
-.spot-label { margin: 16px 0 8px; font-size: 15px; line-height: 20px; color: var(--label-2); }
-.spot-label:first-child { margin-top: 0; }
 .session-refs-row img, .cam-refs-row img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .attempts { margin-top: 24px; }
 
@@ -490,7 +515,8 @@ button:disabled { cursor: not-allowed; }
 }
 .shutter:active { transform: scale(0.9); }
 
-/* Picking the spot before a check-in: a sheet that comes up from the bottom, as on iOS. */
+/* Sheets that come up from the bottom, as on iOS: picking the photo before a check-in, saying
+   where a photo is, a photo's ⋯ menu, the card form. */
 .sheet {
   position: fixed;
   inset: 0;
@@ -510,13 +536,13 @@ button:disabled { cursor: not-allowed; }
   border-radius: 20px 20px 0 0;
 }
 .sheet-title { margin: 0 4px 16px; font-size: 20px; line-height: 25px; font-weight: 700; }
+.sheet .fields { background: var(--cell-2); }
 .sheet-note { margin: -8px 4px 16px; font-size: 15px; line-height: 20px; color: var(--label-2); }
 /* Stripe's card form draws itself inside this box. */
 .card-form { min-height: 120px; }
 .sheet-actions { display: grid; gap: 10px; margin-top: 8px; }
 .picks { margin-bottom: 12px; background: var(--cell-2); }
 .picks li { padding: 0; }
-.picks li + li::before { left: 72px; }
 .pick {
   display: flex;
   align-items: center;
@@ -529,11 +555,36 @@ button:disabled { cursor: not-allowed; }
   text-align: left;
 }
 .pick:active { background: var(--fill); }
-.pick img { flex: none; width: 44px; height: 44px; border-radius: 8px; object-fit: cover; background: var(--fill); }
+.pick img { flex: none; width: 56px; height: 56px; border-radius: 8px; object-fit: cover; background: var(--fill); }
 .pick-name { flex: 1; min-width: 0; font-weight: 500; overflow-wrap: anywhere; }
-.pick-meta { flex: none; font-size: 15px; color: var(--label-2); }
+.picks li + li::before { left: 84px; }
 
-/* Full-size look at a reference photo from the session screen. */
+.describe-preview {
+  display: block;
+  width: 100%;
+  max-height: 36dvh;
+  margin-bottom: 16px;
+  object-fit: contain;
+  background: #000;
+  border-radius: 12px;
+}
+
+.menu { margin-bottom: 12px; background: var(--cell-2); }
+.menu li { padding: 0; }
+.menu button {
+  width: 100%;
+  min-height: 50px;
+  padding: 14px 16px;
+  background: none;
+  border: 0;
+  color: var(--label);
+  text-align: left;
+}
+.menu button:active { background: var(--fill); }
+.menu button.danger { color: var(--red); }
+.menu button.armed { background: var(--red); color: #fff; }
+
+/* Full-size look at a reference photo. */
 .peek {
   position: fixed;
   inset: 0;
