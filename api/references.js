@@ -1,11 +1,15 @@
 // Reference photos, each with a short description of where it is.
-// POST { image, description }: add one. Refused while a session runs.
+// POST { image, description, keep_simple }: add one. Refused while a session runs.
+//   The AI looks at it first. If it is too easy to fake (one object, a blank wall) the answer is
+//   409 too_simple with the reason, and nothing is saved; sending it again with keep_simple: true
+//   saves it as it is. If the AI check itself fails, the photo is saved without a warning.
 // PATCH { id, description }: change the description. Allowed any time; the AI never sees it.
 // DELETE ?id=: delete one. Refused while a session runs.
 import { HttpError, queryParam, route } from '../lib/http.js';
 import { db, requireUser, rpc } from '../lib/db.js';
 import { decodeJpeg, referencePath, remove, upload } from '../lib/photos.js';
 import { isUuid } from '../lib/ids.js';
+import { checkReference } from '../lib/vision.js';
 
 export default route(['POST', 'PATCH', 'DELETE'], async (req) => {
   const user = await requireUser(req);
@@ -13,6 +17,7 @@ export default route(['POST', 'PATCH', 'DELETE'], async (req) => {
   if (req.method === 'POST') {
     const description = readDescription(req.body);
     const photo = decodeJpeg(req.body?.image);
+    if (req.body?.keep_simple !== true) await warnIfSimple(photo);
     const path = referencePath(user.id);
     // The row goes in first: that is where the session lock and the photo limit are checked.
     const ref = await rpc('be_add_reference_photo', { p_user_id: user.id, p_storage_path: path, p_description: description });
@@ -38,6 +43,19 @@ export default route(['POST', 'PATCH', 'DELETE'], async (req) => {
   await remove(path).catch((e) => console.error('left a file behind:', path, e.message));
   return { ok: true };
 });
+
+async function warnIfSimple(photo) {
+  let check;
+  try {
+    check = await checkReference(photo);
+  } catch (e) {
+    console.error('reference check failed, saving anyway:', e.message);
+    return;
+  }
+  if (check.simple) {
+    throw new HttpError(409, 'too_simple', check.reason || 'This photo could be matched from almost anywhere.');
+  }
+}
 
 function readDescription(body) {
   const text = typeof body?.description === 'string' ? body.description.trim() : '';

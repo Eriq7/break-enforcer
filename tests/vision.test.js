@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildRequest, compare, decide, readVerdict } from '../lib/vision.js';
+import { buildRequest, checkReference, compare, decide, readCheck, readVerdict } from '../lib/vision.js';
 
 const jpeg = (n) => Buffer.from([0xff, 0xd8, 0xff, n]);
 const answer = (v) => ({ model: 'gpt-test', choices: [{ message: { content: JSON.stringify(v) } }] });
@@ -14,34 +14,46 @@ test('request sends every reference before the new photo and asks for the verdic
 });
 
 const good = {
-  occlusion: 'none',
-  matched_landmarks: ['red elephant picture', 'bookcase under it', 'grey filing cabinet'],
-  mismatched_features: [],
-  generic_only_match: false,
-  place_score: 2,
-  viewpoint_score: 2,
-  screen_or_print: false,
+  seen_in_both: ['silver laptop', 'light wood desk', 'cream wall'],
+  differences: [],
+  same_scene: 2,
   reason: 'ok',
 };
 
-test('a clear photo of the same place from the same direction passes', () => {
+test('the same thing passes, and so does probably the same thing', () => {
   assert.equal(decide(good), true);
-  assert.equal(decide({ ...good, viewpoint_score: 1, occlusion: 'minor' }), true);
+  assert.equal(decide({ ...good, same_scene: 1 }), true);
   assert.equal(readVerdict(answer(good)).verdict, 'pass');
 });
 
-test('each failed check on its own is enough to reject', () => {
-  for (const change of [
-    { occlusion: 'major' },
-    { place_score: 1 },
-    { place_score: 0 },
-    { viewpoint_score: 0 },
-    { matched_landmarks: ['red elephant picture'] },
-    { generic_only_match: true },
-    { screen_or_print: true },
-  ]) {
-    assert.equal(decide({ ...good, ...change }), false, JSON.stringify(change));
-  }
+test('only a different thing or place is rejected', () => {
+  assert.equal(decide({ ...good, same_scene: 0 }), false);
+  assert.equal(readVerdict(answer({ ...good, same_scene: 0 })).verdict, 'fail');
+});
+
+test('an answer in the old strict format is an error, not a silent fail', () => {
+  // What failed Eric on 2026-10-31 for a clear photo of the same laptop.
+  const old = { occlusion: 'none', matched_landmarks: [], generic_only_match: true, place_score: 1, screen_or_print: true };
+  assert.throws(() => readVerdict(answer(old)));
+});
+
+test('the reference check reads the warning and its reason', () => {
+  const r = readCheck(answer({ shows: 'an orange', simple: true, reason: 'An orange can be anywhere.' }));
+  assert.deepEqual([r.simple, r.reason], [true, 'An orange can be anywhere.']);
+  assert.equal(readCheck(answer({ shows: 'exit doors', simple: false, reason: '' })).simple, false);
+  assert.throws(() => readCheck(answer({ shows: 'x' })));
+});
+
+test('the reference check sends just the one photo', async () => {
+  process.env.OPENAI_API_KEY = 'k';
+  let sent;
+  const fetchImpl = async (url, init) => {
+    sent = JSON.parse(init.body);
+    return { ok: true, status: 200, json: async () => answer({ shows: 'desk', simple: false, reason: '' }) };
+  };
+  assert.equal((await checkReference(jpeg(1), { fetchImpl })).simple, false);
+  assert.equal(sent.messages[1].content.filter((c) => c.type === 'image_url').length, 1);
+  assert.equal(sent.response_format.json_schema.strict, true);
 });
 
 test('an answer that is not the verdict JSON is an error, not a silent fail', () => {

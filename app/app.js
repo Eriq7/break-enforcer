@@ -441,10 +441,13 @@
 
   // Saying where a photo is: right after taking or choosing a new one ({ image }: its JPEG data
   // URL, not saved until this goes through), or changing an existing one ({ ref }).
+  // A new photo the AI finds too easy to fake gets a warning first; { keepSimple } is set once
+  // the user has seen it, and the next Save keeps the photo anyway.
   let describing = null;
 
   function openDescribe(job) {
     describing = job;
+    $('describe-save').textContent = 'Save';
     $('describe-title').textContent = job.ref ? 'Edit description' : 'Where is this?';
     $('describe-preview').src = job.ref ? job.ref.url || '' : job.image;
     $('describe-input').value = job.ref ? job.ref.description : '';
@@ -466,14 +469,20 @@
     const description = $('describe-input').value.trim();
     if (!description) return flash('describe-msg', 'Say where this is, like "7th floor room"');
     $('describe-save').disabled = true;
-    flash('describe-msg', 'Saving…', true);
+    flash('describe-msg', job.ref || job.keepSimple ? 'Saving…' : 'Checking the photo…', true);
     try {
       if (job.ref) await cloud.api('PATCH', 'references', { id: job.ref.id, description });
-      else await cloud.api('POST', 'references', { image: job.image.split(',')[1], description });
+      else await cloud.api('POST', 'references', { image: job.image.split(',')[1], description, keep_simple: !!job.keepSimple });
       closeDescribe();
       await refresh();
       flash('refs-msg', job.ref ? 'Description saved' : 'Photo saved', true);
     } catch (e) {
+      if (e.code === 'too_simple') {
+        job.keepSimple = true;
+        $('describe-save').textContent = 'Save anyway';
+        flash('describe-msg', 'Easy to fake from anywhere. ' + e.message);
+        return;
+      }
       flash('describe-msg', e.message);
     } finally {
       $('describe-save').disabled = false;
