@@ -58,6 +58,10 @@
       const { data } = await supa().auth.getSession();
       return data.session?.access_token || null;
     },
+    async userId() {
+      const { data } = await supa().auth.getSession();
+      return data.session?.user.id || null;
+    },
     signIn: async (email, password) => authResult(await supa().auth.signInWithPassword({ email, password })),
     signUp: async (email, password) => authResult(await supa().auth.signUp({ email, password })),
     verifySignup: async (email, token) => authResult(await supa().auth.verifyOtp({ email, token, type: 'email' })),
@@ -123,6 +127,46 @@
     node.classList.toggle('ok', ok);
   }
 
+  // The last answer from /api/state is kept on this phone, so opening the app paints the real screen
+  // at once and the server's fresh answer replaces it a moment later. It is only a picture of the
+  // screen: every action still goes to the server, which decides.
+  const CACHE_KEY = 'be-state-v1';
+  const URL_LIFETIME = 50 * 60 * 1000; // the photo links in it last an hour
+
+  function saveCache(userId) {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ userId, savedAt: Date.now(), clockOffset, state }));
+    } catch {
+      // Private mode or full storage: the app just opens the slow way.
+    }
+  }
+
+  function clearCache() {
+    try {
+      localStorage.removeItem(CACHE_KEY);
+    } catch {
+      // Nothing to clear.
+    }
+  }
+
+  // The saved state for this user, or null when it would mislead: another account, or a break
+  // whose time ran out while the app was closed (the real result is still to come from the server).
+  function readCache(userId) {
+    try {
+      const c = JSON.parse(localStorage.getItem(CACHE_KEY));
+      if (!c || c.userId !== userId || !c.state?.timing) return null;
+      const now = Date.now() + c.clockOffset;
+      const a = c.state.active;
+      if (a && now >= Date.parse(a.first_photo_at ? a.retake_until : a.deadline_at)) return null;
+      if (Date.now() - c.savedAt > URL_LIFETIME) {
+        for (const r of c.state.references) r.url = null;
+      }
+      return c;
+    } catch {
+      return null;
+    }
+  }
+
   let refreshing = null;
   function refresh() {
     if (!refreshing) {
@@ -132,6 +176,7 @@
           syncClock(s.server_now);
           state = s;
           render();
+          cloud.userId().then((id) => id && saveCache(id));
         } catch (e) {
           if (e.status === 401) return showAuth();
           if (current === 'loading' || !state) return loadingError(e.message);
@@ -626,7 +671,7 @@
 
   function renderTelegram() {
     $('tg-connect').textContent = state.telegram ? 'Reconnect' : 'Connect';
-    $('tg-note').textContent = state.telegram ? 'Connected. Messages at 40:00 and 45:25.' : 'Messages at 40:00 and 45:25. Connect once.';
+    $('tg-note').textContent = state.telegram ? 'Connected. Every 5 minutes from 25:00, and at 45:25.' : 'Messages every 5 minutes from 25:00, and at 45:25. Connect once.';
     if (tgOpening && state.telegram) {
       tgOpening = false;
       flash('tg-msg', 'Telegram connected', true);
@@ -748,8 +793,8 @@
       until = relaxEnd;
       label = 'Break';
       ends = clock(relaxEnd);
-      sub = `Then take a photo at your check-in spot by ${clock(deadline, true)}. You can go early.`;
-      arrived.textContent = 'Take check-in photo';
+      sub = `Take your photo at the check-in spot by ${clock(deadline, true)}. Back early? Check in now and the break ends.`;
+      arrived.textContent = 'Check in early';
     } else {
       from = relaxEnd;
       until = deadline;
@@ -984,6 +1029,7 @@
   let resetEmail = '';
 
   function showAuth(message) {
+    clearCache();
     stopTicker();
     closeCamera();
     closeCardSheet();
@@ -1157,7 +1203,14 @@
 
   async function boot() {
     try {
-      if (!(await cloud.token())) return showAuth();
+      const userId = await cloud.userId();
+      if (!userId) return showAuth();
+      const cached = readCache(userId);
+      if (cached) {
+        clockOffset = cached.clockOffset;
+        state = cached.state;
+        render();
+      }
       await refresh();
     } catch (e) {
       loadingError(e.message);

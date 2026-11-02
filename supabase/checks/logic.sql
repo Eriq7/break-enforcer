@@ -4,7 +4,8 @@
 -- 50:25 deadline, first photo stops the clock, retakes, reference lock, overdue sessions failing,
 -- check-in spots (each has its own photos, a check-in names the spot it is compared with),
 -- reference photos with descriptions (a check-in names the one photo it is compared with),
--- Telegram: link codes, and the reminders at 40:00 and 45:25 going out once to the right breaks,
+-- Telegram: link codes, and the countdown reminders (20, 15, 10, 5 minutes before the break ends)
+-- and the 45:25 one going out once to the right breaks,
 -- and payments: a card is needed to start, the card is locked while a break runs or waits to be
 -- charged, failed breaks (only those) become due, claims, charge rows, and holds coming due.
 -- now() is frozen inside one transaction, so the time-based cases use back-dated rows.
@@ -256,7 +257,35 @@ begin
   select count(*) into n from public.telegram_links where user_id = a and chat_id = 111;
   if n <> 1 then failed := failed || ' link not saved;'; end if;
 
-  -- Reminder: inside the last 5:25 of a running break with no photo, once.
+  -- Countdown: 20, 15, 10 and 5 minutes before the break ends, each once, while no photo is in.
+  insert into public.sessions (user_id, started_at, relax_ends_at, deadline_at)
+  values (a, now() - interval '25 minutes 30 seconds', now() + interval '19 minutes 55 seconds', now() + interval '24 minutes 55 seconds')
+  returning * into s;
+  n := 0;
+  msg := null;
+  for r in select * from public.be_due_reminders() loop
+    if r.chat_id = 111 then n := n + 1; msg := r.message; end if;
+  end loop;
+  if n <> 1 or msg is distinct from 'Your break ends in 20 minutes.' then
+    failed := failed || ' 20-minute message: ' || n || ' ' || coalesce(msg, 'none') || ';';
+  end if;
+  select count(*) into n from public.be_due_reminders() where chat_id = 111;
+  if n <> 0 then failed := failed || ' 20-minute message sent twice;'; end if;
+  update public.sessions
+  set started_at = now() - interval '30 minutes 35 seconds', relax_ends_at = now() + interval '14 minutes 50 seconds', deadline_at = now() + interval '19 minutes 50 seconds'
+  where id = s.id;
+  n := 0;
+  msg := null;
+  for r in select * from public.be_due_reminders() loop
+    if r.chat_id = 111 then n := n + 1; msg := r.message; end if;
+  end loop;
+  if n <> 1 or msg is distinct from 'Your break ends in 15 minutes.' then
+    failed := failed || ' 15-minute message: ' || n || ' ' || coalesce(msg, 'none') || ';';
+  end if;
+  update public.sessions set status = 'passed' where id = s.id;
+
+  -- Reminder: inside the last 5:25 of a running break with no photo, once. Past all four marks
+  -- at once (a short test break, or Telegram connected late) still sends only this last one.
   insert into public.sessions (user_id, started_at, relax_ends_at, deadline_at)
   values (a, now() - interval '41 minutes', now() + interval '4 minutes 25 seconds', now() + interval '9 minutes 25 seconds')
   returning * into s;
@@ -265,16 +294,16 @@ begin
     if r.chat_id = 111 then n := n + 1; msg := r.message; end if;
   end loop;
   if n <> 1 then failed := failed || ' due reminder not sent once;'; end if;
-  if msg is distinct from 'Your break ends in 4 minutes. Then you have 5 minutes to take your check-in photo. Head to your check-in spot.' then
+  if msg is distinct from 'Your break ends in 5 minutes. Then you have 5 minutes to take your check-in photo. Head to your check-in spot.' then
     failed := failed || ' reminder text: ' || coalesce(msg, 'none') || ';';
   end if;
   select count(*) into n from public.be_due_reminders() where chat_id = 111;
   if n <> 0 then failed := failed || ' reminded twice;'; end if;
 
-  -- Not yet due, photo already in, break already over: no reminder.
+  -- Not yet due (21 minutes left), photo already in, break already over: no reminder.
   update public.sessions set status = 'passed' where id = s.id;
   insert into public.sessions (user_id, started_at, relax_ends_at, deadline_at)
-  values (a, now() - interval '39 minutes', now() + interval '6 minutes', now() + interval '11 minutes') returning * into s;
+  values (a, now() - interval '24 minutes', now() + interval '21 minutes', now() + interval '26 minutes') returning * into s;
   select count(*) into n from public.be_due_reminders() where chat_id = 111;
   if n <> 0 then failed := failed || ' reminded too early;'; end if;
   update public.sessions set status = 'passed' where id = s.id;
@@ -285,8 +314,8 @@ begin
   update public.sessions set status = 'passed' where id = s.id;
 
   -- Break over, photo not in yet: the second message, once, with the minutes rounded down.
-  insert into public.sessions (user_id, started_at, relax_ends_at, deadline_at, warned_at)
-  values (a, now() - interval '46 minutes', now() - interval '25 seconds', now() + interval '4 minutes 35 seconds', now() - interval '6 minutes') returning * into s;
+  insert into public.sessions (user_id, started_at, relax_ends_at, deadline_at, countdown_sent)
+  values (a, now() - interval '46 minutes', now() - interval '25 seconds', now() + interval '4 minutes 35 seconds', 4) returning * into s;
   n := 0;
   msg := null;
   for r in select * from public.be_due_reminders() loop
@@ -317,7 +346,7 @@ begin
   values (b, now() - interval '41 minutes', now() + interval '4 minutes', now() + interval '9 minutes') returning * into s;
   perform public.be_due_reminders();
   select * into s from public.sessions where id = s.id;
-  if s.warned_at is not null then failed := failed || ' marked a break with no Telegram;'; end if;
+  if s.countdown_sent <> 0 then failed := failed || ' marked a break with no Telegram;'; end if;
   update public.sessions set status = 'passed' where id = s.id;
 
   -- The sender queues one Telegram request per due break (never sent: all of this rolls back).
@@ -325,7 +354,7 @@ begin
   values (a, now() - interval '41 minutes', now() + interval '4 minutes', now() + interval '9 minutes') returning * into s;
   if public.be_send_reminders() < 1 then failed := failed || ' sender sent nothing;'; end if;
   select * into s from public.sessions where id = s.id;
-  if s.warned_at is null then failed := failed || ' sender did not mark the break;'; end if;
+  if s.countdown_sent = 0 then failed := failed || ' sender did not mark the break;'; end if;
 
   -- Reference photos with descriptions. The description is trimmed and required.
   dref := public.be_add_reference_photo(d, d || '/refs/p1.jpg', '  7th floor room  ');

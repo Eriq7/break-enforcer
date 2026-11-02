@@ -12,22 +12,32 @@ export default route(['GET'], async (req) => {
   await rpc('be_finalize_sessions');
   const { mode } = payments();
 
-  const [references, sessions, telegram, cards] = await Promise.all([
-    db().from('reference_photos').select('id, description, storage_path, created_at').eq('user_id', user.id).order('created_at'),
-    db().from('sessions').select('*').eq('user_id', user.id).order('started_at', { ascending: false }).limit(10),
-    db().from('telegram_links').select('user_id').eq('user_id', user.id),
-    db().from('cards').select('payment_method_id, brand, last4, funding, exp_month, exp_year')
-      .eq('user_id', user.id).eq('livemode', mode === 'live'),
-  ]).then(([r, s, t, c]) => [must(r, 'references'), must(s, 'sessions'), must(t, 'telegram'), must(c, 'cards')]);
-
-  const latest = sessions[0] || null;
-  const [attempts, charges] = latest
-    ? await Promise.all([
+  // Two chains side by side: photos then their links, and sessions then the latest one's attempts and charges.
+  const photosChain = db().from('reference_photos').select('id, description, storage_path, created_at').eq('user_id', user.id).order('created_at')
+    .then(async (r) => {
+      const references = must(r, 'references');
+      return { references, urls: await signedUrls(references.map((p) => p.storage_path)) };
+    });
+  const sessionsChain = db().from('sessions').select('*').eq('user_id', user.id).order('started_at', { ascending: false }).limit(10)
+    .then(async (r) => {
+      const sessions = must(r, 'sessions');
+      const latest = sessions[0] || null;
+      if (!latest) return { sessions, attempts: [], charges: [] };
+      const [a, c] = await Promise.all([
         db().from('photo_attempts').select('id, reference_id, submitted_at, verdict, reason').eq('session_id', latest.id).order('submitted_at'),
         db().from('charges').select('kind, amount, currency, status, void_due_at, voided_at').eq('session_id', latest.id),
-      ]).then(([a, c]) => [must(a, 'attempts'), must(c, 'charges')])
-    : [[], []];
-  const urls = await signedUrls(references.map((r) => r.storage_path));
+      ]);
+      return { sessions, attempts: must(a, 'attempts'), charges: must(c, 'charges') };
+    });
+  const [{ references, urls }, { sessions, attempts, charges }, telegram, cards] = await Promise.all([
+    photosChain,
+    sessionsChain,
+    db().from('telegram_links').select('user_id').eq('user_id', user.id).then((t) => must(t, 'telegram')),
+    db().from('cards').select('payment_method_id, brand, last4, funding, exp_month, exp_year')
+      .eq('user_id', user.id).eq('livemode', mode === 'live').then((c) => must(c, 'cards')),
+  ]);
+
+  const latest = sessions[0] || null;
   const card = cards.find((c) => c.payment_method_id) || null;
 
   return {
