@@ -1,17 +1,17 @@
-/* Break Enforcer site. The same golden hour as the app: milk-white paper, plum-brown ink, and a
-   hero that is the app's own sun-dial under a peach sky. Zen Maru Gothic, with Nunito for numerals. */
+/* Break Enforcer site. Quiet paper: a barely warm off-white, warm-black ink, one muted ochre, and
+   the app's own dial as the hero. Zen Maru Gothic, with Nunito for numerals. */
 
 :root {
-  --bg:      #FFFCF5;
-  --bg-alt:  #FFF3E0;
-  --text:    #3A2A34;
-  --text-2:  #6B5560;
-  --rule:    #EBD8C2;
-  --link:    #A8456B;
+  --bg:      #FCFBF8;
+  --bg-alt:  #F6F3EE;
+  --text:    #2A2622;
+  --text-2:  #6F675F;
+  --rule:    #E6E1D8;
+  --link:    #8A5A22;
 
-  --honey:   #EE9A25;
-  --pass:    #3E7F5B;
-  --miss:    #C8402F;
+  --honey:   #B98A4E;
+  --pass:    #4F7F63;
+  --miss:    #A94438;
 
   --font: "Zen Maru Gothic", ui-rounded, "SF Pro Rounded", "Hiragino Maru Gothic ProN", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --nums: "Nunito", "Zen Maru Gothic", ui-rounded, sans-serif;
@@ -40,7 +40,7 @@ body {
 
 a { color: var(--link); text-decoration: none; }
 a:hover { text-decoration: underline; text-underline-offset: 2px; }
-:focus-visible { outline: 3px solid rgba(168, 69, 107, 0.5); outline-offset: 3px; border-radius: 6px; }
+:focus-visible { outline: 3px solid rgba(138, 90, 34, 0.45); outline-offset: 3px; border-radius: 6px; }
 
 p { margin: 0 0 1em; }
 p:last-child { margin-bottom: 0; }
@@ -64,7 +64,7 @@ h3 { font-size: 21px; line-height: 1.24; }
   top: 0;
   z-index: 20;
   /* Milk glass, so it reads the same over the sky and the paper bands. */
-  background: rgba(255, 249, 238, 0.82);
+  background: rgba(246, 243, 238, 0.85);
   box-shadow: 0 1px 0 var(--rule);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   backdrop-filter: saturate(180%) blur(20px);
@@ -88,7 +88,7 @@ h3 { font-size: 21px; line-height: 1.24; }
 .wordmark:hover { text-decoration: none; }
 .mark { width: 22px; height: 22px; }
 .mark circle, .mark path { fill: none; stroke-width: 4; }
-.mark-track { stroke: #F1DCC2; }
+.mark-track { stroke: #DDD3C2; }
 .mark-arc { stroke: var(--honey); stroke-linecap: round; }
 .nav { display: flex; gap: clamp(16px, 3vw, 32px); font-size: 14px; }
 .nav a { color: var(--text); opacity: 0.75; }
@@ -115,24 +115,12 @@ section.alt { background: var(--bg-alt); }
 
 .hero {
   position: relative;
-  background: linear-gradient(180deg, #FFF9EE 0%, #FFEFD6 55%, #FFDDBF 100%);
+  background: var(--bg-alt);
   color: var(--text);
   text-align: center;
-  padding-block: clamp(64px, 9vw, 112px) clamp(150px, 20vw, 230px);
+  padding-block: clamp(64px, 9vw, 112px) clamp(72px, 9vw, 112px);
   overflow: hidden;
 }
-/* Three flat hills at the foot of the sky, drawn the way a painted background is built. */
-.hero::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: clamp(110px, 16vw, 190px);
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 390 200' preserveAspectRatio='none'%3E%3Cpath fill='%23F8CDA8' d='M0 78C60 40 120 34 190 62S320 76 390 38V200H0z'/%3E%3Cpath fill='%23F0B391' d='M0 126C70 94 150 100 220 120S340 130 390 104V200H0z'/%3E%3Cpath fill='%23E39A7C' d='M0 170C80 150 160 156 240 168S350 170 390 156V200H0z'/%3E%3C/svg%3E") bottom / 100% 100% no-repeat;
-  pointer-events: none;
-}
-.hero .wrap { position: relative; z-index: 1; }
 .hero h1 {
   font-size: clamp(40px, 6.6vw, 72px);
   line-height: 1.1;
@@ -161,14 +149,14 @@ section.alt { background: var(--bg-alt); }
   position: absolute;
   inset: 10%;
   border-radius: 50%;
-  background: radial-gradient(circle at 50% 34%, #FFEFA8 0%, #FFCF6E 52%, #FFB04A 100%);
-  box-shadow: inset -14px -18px 0 -3px rgba(232, 137, 58, 0.2), 0 0 46px 10px rgba(255, 176, 74, 0.38);
+  background: #F1E8D6;
+  box-shadow: inset -12px -16px 0 -3px rgba(42, 38, 34, 0.05);
   animation: rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
-@keyframes rise { from { opacity: 0; transform: translateY(18px) scale(0.94); } }
-.ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); filter: drop-shadow(0 1px 3px rgba(150, 90, 50, 0.22)); }
+@keyframes rise { from { opacity: 0; transform: scale(0.96); } }
+.ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
 .ring circle { fill: none; stroke-width: 5; }
-.ring-track { stroke: rgba(255, 253, 247, 0.95); }
+.ring-track { stroke: rgba(42, 38, 34, 0.11); }
 .ring-fill {
   stroke: var(--honey);
   stroke-linecap: round;
@@ -239,7 +227,7 @@ section.alt { background: var(--bg-alt); }
   height: 32px;
   border-radius: 50%;
   background: var(--text);
-  color: #FFF1D6;
+  color: #F6F3EE;
   font-size: 15px;
   font-weight: 700;
 }
@@ -318,7 +306,7 @@ section.alt { background: var(--bg-alt); }
   color: var(--text);
   transition: transform 0.3s cubic-bezier(0, 0, 0.5, 1), box-shadow 0.3s cubic-bezier(0, 0, 0.5, 1);
 }
-.card:hover { text-decoration: none; transform: scale(1.01); box-shadow: 0 10px 28px -14px rgba(120, 70, 50, 0.4); }
+.card:hover { text-decoration: none; transform: scale(1.01); box-shadow: 0 10px 28px -16px rgba(42, 38, 34, 0.3); }
 .card p { font-size: 15px; color: var(--text-2); }
 .card .go { margin-top: auto; padding-top: 6px; font-size: 15px; color: var(--link); }
 .card:hover .go { text-decoration: underline; text-underline-offset: 2px; }
@@ -351,7 +339,7 @@ section.alt { background: var(--bg-alt); }
 .clause:first-child { border-top: 0; padding-top: 0; }
 .clause-num { padding-top: 2px; font-size: 15px; font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .clause h2 { margin: 0 0 12px; font-size: 21px; line-height: 1.24; text-align: left; max-width: none; letter-spacing: 0; }
-.clause p, .clause li { color: #4F3E49; }
+.clause p, .clause li { color: #4A443E; }
 .clause ul { display: grid; gap: 8px; margin: 0 0 1em; padding-left: 20px; }
 .clause ul:last-child { margin-bottom: 0; }
 .clause strong { color: var(--text); font-weight: 600; }
