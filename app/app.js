@@ -107,6 +107,14 @@
     for (const s of SCREENS) $('screen-' + s).hidden = s !== name;
     $('settings-open').hidden = name !== 'home';
     $('settings-done').hidden = name !== 'settings';
+    // The sky belongs to a running break: any other screen is the morning sky again.
+    if (name !== 'session') setSky(0, '');
+  }
+
+  // Colours that follow the hour. heat runs 0 → 1 over the break; mode is '', 'alarm' or 'stopped'.
+  function setSky(heat, mode) {
+    document.documentElement.style.setProperty('--heat', heat.toFixed(3));
+    document.body.dataset.mode = mode;
   }
 
   function flash(id, text, ok = false) {
@@ -556,7 +564,17 @@
       const stripe = Stripe(r.publishable_key);
       const elements = stripe.elements({
         clientSecret: r.client_secret,
-        appearance: { theme: 'night', variables: { colorPrimary: '#FF9F0A', colorBackground: '#2C2C2E', borderRadius: '10px' } },
+        appearance: {
+          theme: 'flat',
+          variables: {
+            colorPrimary: '#A8456B',
+            colorBackground: '#FFFCF5',
+            colorText: '#3A2A34',
+            colorDanger: '#C8402F',
+            borderRadius: '14px',
+            fontFamily: 'ui-rounded, "SF Pro Rounded", system-ui, sans-serif',
+          },
+        },
       });
       $('card-form').replaceChildren();
       elements.create('payment', { wallets: { applePay: 'never', googlePay: 'never' } }).mount($('card-form'));
@@ -749,6 +767,8 @@
     $('timer-sub').textContent = sub;
     const remaining = Math.min(1, Math.max(0, left / (until - from)));
     $('ring').style.strokeDashoffset = String(RING_LENGTH * (1 - remaining));
+    // The break fades from morning to dusk as it runs out; the check-in window and the stopped clock have their own colours.
+    setSky(mode ? 1 : 1 - remaining, mode);
 
     // Time is up on this phone's view: ask the server, which makes the actual call.
     if (left <= 0 && Date.now() - lastOverdueRefresh > 5000) {
