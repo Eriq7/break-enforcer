@@ -162,6 +162,11 @@
       renderHome();
       renderSettings();
       show(wantSettings ? 'settings' : 'home');
+      // The break ended while the check-in camera was open (the shutter wasn't pressed in time).
+      if (camMode === 'checkin' && !$('screen-camera').hidden) {
+        closeCamera();
+        flash('home-msg', 'Time ran out before the photo was taken.');
+      }
     }
   }
 
@@ -809,6 +814,8 @@
   let stream = null;
   let camMode = null;
   let camRef = null; // the photo a check-in is matched against
+  let camSession = null; // the break this check-in camera was opened for; state.active may be gone by the time Use Photo is pressed
+  let camStop = null; // the request that stops the clock at the shutter press (settled already if the clock is stopped)
   let shot = null;
   let ghostUrl = null; // the reference laid over the viewfinder, if any
   let camGuide = false; // whether reference thumbnails are offered in the viewfinder
@@ -816,6 +823,8 @@
   async function openCamera(mode, ref = null) {
     camMode = mode;
     camRef = ref;
+    camSession = mode === 'checkin' ? state.active.id : null;
+    camStop = mode === 'checkin' && state.active.first_photo_at ? Promise.resolve() : null;
     shot = null;
     // A check-in starts with the picked photo laid over the view, to line up the same shot.
     ghostUrl = mode === 'checkin' ? ref.url || null : null;
@@ -888,7 +897,23 @@
     $('still').src = shot;
     $('cam-msg').textContent = '';
     camUi('shot');
+    // The shutter press is what counts against the deadline, not the end of the upload.
+    // The server stamps the time; Use Photo waits for this and shows any refusal.
+    if (camMode === 'checkin') stopClock().catch(() => {});
   };
+
+  function stopClock() {
+    if (!camStop) {
+      camStop = cloud.api('POST', 'clock', { session_id: camSession }).then((r) => {
+        syncClock(r.server_now);
+      });
+      // A refusal from the server is final; a dropped connection can be retried.
+      camStop.catch((e) => {
+        if (!e.code) camStop = null;
+      });
+    }
+    return camStop;
+  }
 
   $('cam-retake').onclick = () => {
     shot = null;
@@ -908,7 +933,8 @@
 
     $('cam-msg').textContent = 'The AI is checking. A few seconds…';
     try {
-      const r = await cloud.api('POST', 'photo', { session_id: state.active.id, reference_id: camRef.id, image: shot.split(',')[1] });
+      await stopClock();
+      const r = await cloud.api('POST', 'photo', { session_id: camSession, reference_id: camRef.id, image: shot.split(',')[1] });
       syncClock(r.server_now);
       closeCamera();
       await refresh();

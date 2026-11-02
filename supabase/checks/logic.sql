@@ -378,6 +378,53 @@ begin
   end if;
   update public.sessions set status = 'passed' where id = s.id;
 
+  -- The shutter stops the clock. A photo sent after the deadline still counts if the shutter
+  -- was pressed before it (the deadline is moved back to stand in for time passing).
+  insert into public.sessions (user_id, started_at, relax_ends_at, deadline_at)
+  values (d, now() - interval '50 minutes', now() - interval '5 minutes', now() + interval '10 seconds')
+  returning * into s;
+  begin
+    perform public.be_stop_clock(a, s.id, 150);
+    failed := failed || ' stopped someone else''s clock;';
+  exception when others then
+    if sqlerrm <> 'session_not_found' then failed := failed || ' session_not_found(stop)? ' || sqlerrm || ';'; end if;
+  end;
+  s := public.be_stop_clock(d, s.id, 150);
+  if s.first_photo_at is null or s.retake_until - s.first_photo_at <> interval '150 seconds' then
+    failed := failed || ' shutter did not stop the clock;';
+  end if;
+  s2 := public.be_stop_clock(d, s.id, 150);
+  if s2.first_photo_at is distinct from s.first_photo_at or s2.retake_until is distinct from s.retake_until then
+    failed := failed || ' second shutter moved the clock;';
+  end if;
+  select count(*) into n from public.photo_attempts where session_id = s.id;
+  if n <> 0 then failed := failed || ' stopping the clock recorded an attempt;'; end if;
+  update public.sessions set relax_ends_at = now() - interval '2 minutes', deadline_at = now() - interval '1 minute' where id = s.id;
+  att := public.be_record_checkin(d, s.id, dref.id, d || '/attempts/2.jpg', 150);
+  s2 := public.be_record_verdict(att.id, 'pass', 'Same place', 'test', '{}'::jsonb);
+  if s2.status <> 'passed' then failed := failed || ' photo after the deadline but shot before it did not pass;'; end if;
+
+  -- Shutter after the deadline: refused.
+  insert into public.sessions (user_id, started_at, relax_ends_at, deadline_at)
+  values (d, now() - interval '56 minutes', now() - interval '11 minutes', now() - interval '1 minute')
+  returning * into s;
+  begin
+    perform public.be_stop_clock(d, s.id, 150);
+    failed := failed || ' shutter after deadline accepted;';
+  exception when others then
+    if sqlerrm not in ('session_closed', 'too_late') then failed := failed || ' late shutter? ' || sqlerrm || ';'; end if;
+  end;
+  perform public.be_finalize_sessions();
+
+  -- Shutter pressed but no photo ever sent: fails as no_pass once the retake window and slack are over.
+  insert into public.sessions (user_id, started_at, relax_ends_at, deadline_at, first_photo_at, retake_until)
+  values (d, now() - interval '55 minutes', now() - interval '10 minutes', now() - interval '5 minutes',
+          now() - interval '8 minutes', now() - interval '3 minutes')
+  returning * into s;
+  perform public.be_finalize_sessions();
+  select * into s from public.sessions where id = s.id;
+  if s.status <> 'failed' or s.fail_reason is distinct from 'no_pass' then failed := failed || ' shutter without a photo did not fail as no_pass;'; end if;
+
   -- At most 12 photos per person.
   for i in 2..12 loop
     perform public.be_add_reference_photo(d, d || '/refs/p' || i || '.jpg', 'Spot ' || i);
