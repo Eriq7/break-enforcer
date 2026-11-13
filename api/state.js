@@ -6,6 +6,9 @@ import { signedUrls } from '../lib/photos.js';
 import { MAX_REFERENCES, timing } from '../lib/config.js';
 import { payments } from '../lib/stripe.js';
 
+// Settings shows the latest 6 breaks; one more says whether there is more to see.
+const HISTORY_ROWS = 7;
+
 export default route(['GET'], async (req) => {
   const user = await requireUser(req);
   // So an overdue session shows up as failed right away, without waiting for the minute cron.
@@ -18,7 +21,7 @@ export default route(['GET'], async (req) => {
       const references = must(r, 'references');
       return { references, urls: await signedUrls(references.map((p) => p.storage_path)) };
     });
-  const sessionsChain = db().from('sessions').select('*').eq('user_id', user.id).order('started_at', { ascending: false }).limit(10)
+  const sessionsChain = db().from('sessions').select('*').eq('user_id', user.id).order('started_at', { ascending: false }).limit(HISTORY_ROWS)
     .then(async (r) => {
       const sessions = must(r, 'sessions');
       const latest = sessions[0] || null;

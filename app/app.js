@@ -299,10 +299,19 @@
         ? 'Add a card in Settings first.'
         : "Can't be cancelled once started.";
     $('start-setup').hidden = hasRefs && !!state.card;
+    // The last break failed and the bank refused the charge: say so here, where it is seen. Not a block.
+    const declined = state.latest?.billing_status === 'declined' ? state.latest.billing_note : '';
+    $('home-billing').textContent = declined || '';
+    $('home-billing').hidden = !declined;
   }
 
   function openSettings() {
     wantSettings = true;
+    // History starts folded and back at the latest 6 every time Settings opens.
+    $('history-box').open = false;
+    historyRange = null;
+    historyRows = null;
+    renderHistory();
     show('settings');
     window.scrollTo(0, 0);
   }
@@ -379,15 +388,46 @@
     $('last-detail').textContent = detail;
   }
 
+  // Folded under History. Open, it shows the latest 6; View more offers past month, past 3 months or all.
+  const HISTORY_SHOWN = 6;
+  let historyRange = null; // null: the latest 6, from /api/state. Otherwise 'month', '3months' or 'all'.
+  let historyRows = null; // the breaks in historyRange, once /api/history has answered
+
   function renderHistory() {
     const history = $('history');
     history.replaceChildren();
-    if (state.history.length === 0) history.append(el('li', {}, el('span', { className: 'dim', textContent: 'Nothing yet' })));
-    for (const s of state.history) {
+    const rows = historyRange ? historyRows : state.history.slice(0, HISTORY_SHOWN);
+    const note = (text) => history.append(el('li', {}, el('span', { className: 'dim', textContent: text })));
+    if (!rows) note('Loading…');
+    else if (rows.length === 0) note(historyRange ? 'Nothing in this period' : 'Nothing yet');
+    for (const s of rows || []) {
       const [text, cls] = sessionTag(s);
       history.append(el('li', {}, el('span', { className: 'when', textContent: day(s.started_at) }), el('span', { className: cls, textContent: text })));
     }
+    $('history-more').hidden = historyRange !== null || state.history.length <= HISTORY_SHOWN;
+    $('history-range').hidden = historyRange === null;
+    for (const b of $('history-range').children) b.classList.toggle('on', b.dataset.range === historyRange);
   }
+
+  async function loadHistory(range) {
+    historyRange = range;
+    historyRows = null;
+    flash('history-msg', '');
+    renderHistory();
+    try {
+      const r = await cloud.api('GET', 'history?range=' + range);
+      if (historyRange !== range) return; // another range was picked meanwhile
+      historyRows = r.history;
+    } catch (e) {
+      if (historyRange !== range) return;
+      historyRows = [];
+      flash('history-msg', e.message);
+    }
+    renderHistory();
+  }
+
+  $('history-more').onclick = () => loadHistory('month');
+  for (const b of $('history-range').children) b.onclick = () => loadHistory(b.dataset.range);
 
   // ---------- check-in photos ----------
 

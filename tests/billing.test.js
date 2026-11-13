@@ -93,7 +93,7 @@ test('hold declined: no fee, nothing charged, and the user is told why', async (
   await chargeBreak(h.deps, h.task);
   assert.equal(h.stripe.calls.length, 1);
   assert.deepEqual([h.rows.hold.status, h.rows.hold.decline_code, h.rows.hold.payment_intent_id], ['declined', 'insufficient_funds', 'pi_declined']);
-  assert.deepEqual(h.finished, [{ status: 'declined', note: 'Your card was declined (not enough money in the account), so nothing was charged this time.' }]);
+  assert.deepEqual(h.finished, [{ status: 'declined', note: "Your card didn't have enough money, so nothing was charged this time. Top it up before your next break." }]);
 });
 
 test('fee declined after the hold went through: the hold is released at once', async () => {

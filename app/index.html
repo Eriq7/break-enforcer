@@ -102,6 +102,7 @@
     </div>
     <button class="btn btn-primary btn-large" id="start" type="button">Start break</button>
     <p class="footnote centered" id="start-hint"></p>
+    <p class="msg centered" id="home-billing" hidden></p>
     <button class="text-btn centered" id="start-setup" type="button" hidden>Open Settings</button>
     <p class="msg centered" id="home-msg" role="status"></p>
     </div>
@@ -145,7 +146,17 @@
         <p class="last-detail" id="last-detail"></p>
       </div>
     </div>
-    <ol class="list" id="history"></ol>
+    <details class="history" id="history-box">
+      <summary>History</summary>
+      <div class="range" id="history-range" role="group" aria-label="How far back" hidden>
+        <button type="button" data-range="month">Past month</button>
+        <button type="button" data-range="3months">Past 3 months</button>
+        <button type="button" data-range="all">All</button>
+      </div>
+      <ol class="list" id="history"></ol>
+      <button class="text-btn" id="history-more" type="button" hidden>View more</button>
+      <p class="msg" id="history-msg" role="status"></p>
+    </details>
 
     <ul class="list signout">
       <li><button class="text-btn danger" id="logout" type="button">Log out</button></li>
