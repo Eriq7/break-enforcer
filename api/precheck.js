@@ -2,7 +2,7 @@
 // lib/vision.js, the same camera and overlay in the app), against one of the user's photos, but
 // it is not tied to a break: nothing is saved, no clock runs and the card is never touched.
 // It lets a user try a new photo before a break and real money depend on it.
-// POST { reference_id, image } → { verdict: 'pass' | 'fail', clear, reason }
+// POST { reference_id, image } → { verdict: 'pass' | 'fail', clear, points }
 import { HttpError, route } from '../lib/http.js';
 import { db, must, requireUser } from '../lib/db.js';
 import { decodeJpeg, download } from '../lib/photos.js';
@@ -28,5 +28,5 @@ export default route(['POST'], async (req) => {
     console.error('test check failed:', e.message);
     throw new HttpError(502, 'ai_failed', "The AI couldn't check this photo. Try again.");
   }
-  return { verdict: result.verdict, clear: result.clear, reason: result.reason };
+  return { verdict: result.verdict, clear: result.clear, points: result.points };
 });

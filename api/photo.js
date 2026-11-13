@@ -30,12 +30,8 @@ export default route(['POST'], async (req) => {
     result = await compare([await loadReference(referenceId)], photo);
   } catch (e) {
     console.error('photo check failed:', e.message);
-    result = {
-      verdict: 'error',
-      reason: e instanceof HttpError ? e.message : "The AI check failed. Retake the photo. If it keeps failing, this break won't count against you.",
-      model: null,
-      raw: null,
-    };
+    const points = e instanceof HttpError ? [e.message] : ["The AI check didn't work", 'Retake the photo', "If it keeps failing, this break won't count against you"];
+    result = { verdict: 'error', points, reason: points.join('\n'), model: null, raw: null };
   }
 
   const session = await rpc('be_record_verdict', {
@@ -45,7 +41,7 @@ export default route(['POST'], async (req) => {
     p_model: result.model,
     p_result: result.raw,
   });
-  return { verdict: result.verdict, reason: result.reason, session, server_now: new Date().toISOString() };
+  return { verdict: result.verdict, points: result.points, session, server_now: new Date().toISOString() };
 });
 
 // Only the photo the user picked. be_record_checkin has already checked it is this user's.

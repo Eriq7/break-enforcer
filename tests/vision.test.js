@@ -17,7 +17,7 @@ const good = {
   seen_in_both: ['silver laptop', 'light wood desk', 'cream wall'],
   differences: [],
   same_scene: 2,
-  reason: 'ok',
+  points: [],
 };
 
 test('the same thing passes, and so does probably the same thing', () => {
@@ -35,6 +35,17 @@ test('a pass says whether it was clear or only just', () => {
 test('only a different thing or place is rejected', () => {
   assert.equal(decide({ ...good, same_scene: 0 }), false);
   assert.equal(readVerdict(answer({ ...good, same_scene: 0 })).verdict, 'fail');
+});
+
+test('a fail comes back as at most 3 short points, stored one per line', () => {
+  const r = readVerdict(answer({ ...good, same_scene: 0, points: [' Dark desk here.', 'No window', 'Step back', 'Fourth'] }));
+  assert.deepEqual(r.points, ['Dark desk here', 'No window', 'Step back']);
+  assert.equal(r.reason, 'Dark desk here\nNo window\nStep back');
+});
+
+test('a fail with no points still tells the user what to do, and a pass has none', () => {
+  assert.equal(readVerdict(answer({ ...good, same_scene: 0, points: [] })).points.length, 2);
+  assert.deepEqual(readVerdict(answer({ ...good, points: ['ignored'] })).points, []);
 });
 
 test('an answer in the old strict format is an error, not a silent fail', () => {
@@ -72,12 +83,12 @@ test('compare calls the API with the key and returns the verdict', async () => {
   let sent;
   const fetchImpl = async (url, init) => {
     sent = { url, init };
-    return { ok: true, status: 200, json: async () => answer({ ...good, reason: 'Same place' }) };
+    return { ok: true, status: 200, json: async () => answer({ ...good, same_scene: 0, points: ['No window'] }) };
   };
   const r = await compare([jpeg(1)], jpeg(2), { fetchImpl });
   assert.equal(sent.url, 'https://api.openai.com/v1/chat/completions');
   assert.equal(sent.init.headers.authorization, 'Bearer test-key');
-  assert.deepEqual([r.verdict, r.reason, r.model], ['pass', 'Same place', 'gpt-test']);
+  assert.deepEqual([r.verdict, r.reason, r.model], ['fail', 'No window', 'gpt-test']);
 });
 
 test('a rejected key says which setting to fix', async () => {

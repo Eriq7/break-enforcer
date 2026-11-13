@@ -544,9 +544,24 @@ body[data-mode="alarm"] #arrived.btn-primary { background: var(--coral); color: 
   box-shadow: inset 0 0 0 1px var(--edge);
 }
 .result-title { font-size: 17px; line-height: 24px; font-weight: 700; }
-.result-reason { margin-top: 4px; font-size: 15px; line-height: 22px; color: var(--ink-2); }
 .result.pass .result-title { color: var(--sage); }
 .result.fail .result-title, .result.error .result-title { color: var(--coral); }
+
+/* Why a photo failed: a few short points, each behind a small dot in the colour of the result. */
+.points { display: grid; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
+.points li { position: relative; padding-left: 18px; font-size: 15px; line-height: 22px; color: var(--ink-2); }
+.points li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--coral);
+}
+.last-detail + .points { margin-top: 6px; }
+#last-bill { margin-top: 8px; }
 
 .session-refs .section-title { margin-top: 32px; }
 .session-refs-row, .cam-refs-row { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -734,8 +749,102 @@ body[data-mode="alarm"] #arrived.btn-primary { background: var(--coral); color: 
 }
 .peek img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 16px; }
 
+/* ---------- verdict: the answer to a check-in or a test ----------
+   A full screen that grows out of the Use Photo button. In the middle, the app's dial finishes
+   its job: the ring closes, then a tick or a cross is drawn. A real pass also lights the twelve
+   hour marks one by one around the face. A fail draws the same dial in brick and shakes its head. */
+
+.verdict {
+  position: fixed;
+  inset: 0;
+  z-index: 58;
+  display: flex;
+  flex-direction: column;
+  padding: calc(env(safe-area-inset-top) + 24px) var(--gutter) calc(env(safe-area-inset-bottom) + 24px);
+  background: var(--v-wash);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  --v-wash: var(--milk);
+  --v-disc: #F1E8D6;
+  --v-ring: var(--honey);
+  --v-mark: var(--berry);
+}
+.verdict.pass  { --v-wash: #ECF0E8; --v-disc: #DCE6D8; --v-ring: var(--sage);  --v-mark: #2F5E44; }
+.verdict.fail  { --v-wash: #F6ECE7; --v-disc: #EEDAD2; --v-ring: var(--coral); --v-mark: var(--coral); }
+
+.verdict-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 380px;
+  margin: 0 auto;
+  text-align: center;
+}
+.verdict-actions { width: 100%; max-width: 380px; margin: 24px auto 0; }
+
+.v-dial { width: min(58vw, 220px); height: auto; margin-bottom: 20px; overflow: visible; }
+.v-disc { fill: var(--v-disc); }
+.v-track { fill: none; stroke: var(--fill-2); stroke-width: 6; }
+.v-ring {
+  --len: 464.96; /* 2πr for r = 74 */
+  fill: none;
+  stroke: var(--v-ring);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-dasharray: var(--len);
+  stroke-dashoffset: 0;
+}
+.v-glyph {
+  fill: none;
+  stroke: var(--v-mark);
+  stroke-width: 9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: var(--len);
+  stroke-dashoffset: 0;
+  display: none;
+}
+.v-pass  { --len: 73; }
+.v-fail  { --len: 51; }
+.v-error { --len: 40; }
+.verdict.pass .v-pass, .verdict.fail .v-fail, .verdict.error .v-error { display: inline; }
+.v-ticks { display: none; }
+.verdict.ceremony .v-ticks { display: inline; }
+.v-tick { stroke: var(--v-ring); stroke-width: 3.5; stroke-linecap: round; opacity: 0.4; }
+
+.verdict-title { margin: 0; font-size: 30px; line-height: 38px; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+.verdict-detail { margin-top: 8px; font-size: 17px; line-height: 25px; color: var(--ink-2); font-variant-numeric: tabular-nums; text-wrap: balance; }
+.verdict .points { width: fit-content; max-width: 100%; gap: 10px; margin: 20px auto 0; text-align: left; }
+.verdict .points li { padding-left: 22px; font-size: 17px; line-height: 24px; color: var(--ink); }
+.verdict .points li::before { top: 9px; background: var(--v-mark); }
+.verdict-note { margin-top: 18px; font-size: 15px; line-height: 22px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.verdict-note:empty { display: none; }
+
+/* The sequence, once per opening: the ring closes, the mark is drawn, then the face reacts. */
+.verdict.play .v-ring { animation: v-draw 0.75s cubic-bezier(0.3, 0.6, 0.2, 1) 0.22s both; }
+.verdict.play .v-glyph { animation: v-draw 0.3s cubic-bezier(0.4, 0, 0.2, 1) 0.9s both; }
+.verdict.play .v-fail-2 { animation-delay: 1.08s; }
+.verdict.play .v-disc { transform-origin: 100px 100px; animation: v-settle 0.5s cubic-bezier(0.3, 1.5, 0.5, 1) 1.05s both; }
+.verdict.fail.play .v-dial { animation: v-shake 0.42s ease-in-out 1.4s both; }
+/* The hour marks on the face light up one after another, as if a hand swept round once, then dim. */
+.verdict.ceremony.play .v-tick { animation: v-tick 0.7s cubic-bezier(0.2, 0.7, 0.3, 1) calc(1.05s + var(--i) * 45ms) both; }
+
+@keyframes v-draw { from { stroke-dashoffset: var(--len); } }
+@keyframes v-settle { 40% { transform: scale(1.06); } }
+@keyframes v-shake { 20% { transform: translateX(-9px); } 40% { transform: translateX(8px); } 60% { transform: translateX(-5px); } 80% { transform: translateX(3px); } }
+@keyframes v-tick {
+  from { opacity: 0; transform: translateY(5px); }
+  35% { opacity: 1; transform: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ring-fill, .dial.enter .ring-fill, .segmented::before, .btn, .shutter { transition: none; }
   .dial::before, .dial.alarm::before, .sheet-card { animation: none; }
   .spinner { animation-duration: 2.4s; }
+  .verdict.play .v-ring, .verdict.play .v-glyph, .verdict.play .v-disc, .verdict.fail.play .v-dial, .verdict.ceremony.play .v-tick { animation: none; }
+  .verdict.play { animation: v-fade 0.2s ease-out; }
 }
+@keyframes v-fade { from { opacity: 0; } }

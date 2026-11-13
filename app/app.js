@@ -208,7 +208,7 @@
       renderSettings();
       show(wantSettings ? 'settings' : 'home');
       // The break ended while the check-in camera was open (the shutter wasn't pressed in time).
-      if (camMode === 'checkin' && !$('screen-camera').hidden) {
+      if (camMode === 'checkin' && !$('screen-camera').hidden && $('verdict').hidden) {
         closeCamera();
         flash('home-msg', 'Time ran out before the photo was taken.');
       }
@@ -382,10 +382,12 @@
     } else if (latest.fail_reason === 'no_photo') {
       detail = `No photo before ${clock(latest.deadline_at, true)}.`;
     } else {
-      detail = 'No photo passed the check.' + (lastAttempt?.reason ? ` Last one: ${lastAttempt.reason}` : '');
+      detail = lastAttempt?.reason ? "The last photo didn't match:" : 'No photo passed the check.';
     }
-    if (!passed && !excused) detail += ' ' + billingLine(latest);
     $('last-detail').textContent = detail;
+    fillPoints($('last-points'), latest.fail_reason === 'no_pass' && !passed && !excused ? pointsOf(lastAttempt?.reason) : []);
+    $('last-bill').textContent = !passed && !excused ? billingLine(latest) : '';
+    $('last-bill').hidden = passed || excused;
   }
 
   // Folded under History. Open, it shows the latest 6; View more offers past month, past 3 months or all.
@@ -777,8 +779,8 @@
     if (last) {
       box.className = 'result ' + last.verdict;
       const where = state.references.length > 1 ? state.references.find((r) => r.id === last.reference_id)?.description : null;
-      $('attempt-title').textContent = (VERDICT_TEXT[last.verdict] || last.verdict) + (where ? ' · ' + where : '');
-      $('attempt-reason').textContent = last.reason || '';
+      $('attempt-title').textContent = (VERDICT_TEXT[last.verdict] || last.verdict) + (where ? ', ' + where : '');
+      fillPoints($('attempt-points'), last.verdict === 'pass' ? [] : pointsOf(last.reason));
     }
     const list = $('attempts');
     list.replaceChildren();
@@ -874,7 +876,7 @@
   }
 
   // With more than one photo, ask which one the user is standing at. The AI compares with that one only.
-  $('arrived').onclick = () => {
+  function pickAndShoot() {
     const refs = state.references;
     if (refs.length === 1) return openCamera('checkin', refs[0]);
     const list = $('ref-picks');
@@ -891,7 +893,9 @@
       list.append(el('li', {}, pick));
     }
     $('ref-picker').hidden = false;
-  };
+  }
+
+  $('arrived').onclick = pickAndShoot;
 
   $('ref-picker-cancel').onclick = () => {
     $('ref-picker').hidden = true;
@@ -910,7 +914,6 @@
   let shot = null;
   let ghostUrl = null; // the reference laid over the viewfinder, if any
   let camGuide = false; // whether reference thumbnails are offered in the viewfinder
-  let camPhase = 'live';
 
   async function openCamera(mode, ref = null) {
     camMode = mode;
@@ -968,9 +971,8 @@
     $('ghost').hidden = !ghostUrl || !$('still').hidden;
   }
 
-  // live: viewfinder · shot: reviewing the photo · busy: sending it · result: a test's verdict is showing
+  // live: viewfinder, shot: reviewing the photo, busy: sending it
   function camUi(phase) {
-    camPhase = phase;
     const live = phase === 'live';
     $('video').hidden = !live;
     $('ghost').hidden = !live || !ghostUrl;
@@ -983,7 +985,6 @@
     $('cam-use').hidden = live;
     $('cam-retake').disabled = phase === 'busy';
     $('cam-use').disabled = phase === 'busy';
-    $('cam-use').textContent = phase === 'result' ? 'Done' : 'Use Photo';
   }
 
   $('cam-shoot').onclick = () => {
@@ -1020,7 +1021,6 @@
   $('cam-cancel').onclick = closeCamera;
 
   $('cam-use').onclick = async () => {
-    if (camPhase === 'result') return closeCamera();
     if (camMode === 'test') return testShot();
     if (camMode === 'reference') {
       const image = shot;
@@ -1035,8 +1035,7 @@
       await stopClock();
       const r = await cloud.api('POST', 'photo', { session_id: camSession, reference_id: camRef.id, image: shot.split(',')[1] });
       syncClock(r.server_now);
-      closeCamera();
-      await refresh();
+      await showCheckin(r);
     } catch (e) {
       if (['session_closed', 'too_late', 'retake_over', 'session_not_found'].includes(e.code)) {
         closeCamera();
@@ -1049,19 +1048,155 @@
     }
   };
 
-  // Nothing is stored and no break is involved, so the verdict just shows over the photo.
+  // The same pass and fail screens as a real check-in, without the celebration: nothing was at stake.
   async function testShot() {
     camUi('busy');
     $('cam-msg').textContent = 'The AI is checking. A few seconds…';
     try {
       const r = await cloud.api('POST', 'precheck', { reference_id: camRef.id, image: shot.split(',')[1] });
-      const head = r.verdict !== 'pass' ? '✗ This would fail.' : r.clear ? '✓ This would pass.' : '✓ This would pass, but only just. Line up the faded photo more closely.';
-      $('cam-msg').textContent = head + (r.reason ? ' ' + r.reason : '');
-      camUi('result');
+      const ref = camRef;
+      const again = { label: 'Try again', run: () => { closeVerdict(); openCamera('test', ref); } };
+      const done = { label: 'Done', run: closeVerdict };
+      const note = 'Test only. Nothing saved or charged.';
+      const from = $('cam-use');
+      const opening = r.verdict !== 'pass'
+        ? openVerdict({ kind: 'fail', title: 'This would fail', points: r.points || [], note, primary: again, secondary: done, from })
+        : r.clear
+          ? openVerdict({ kind: 'pass', title: 'This would pass', detail: 'A real check-in like this one passes.', note, primary: done, from })
+          : openVerdict({ kind: 'pass', title: 'This would pass, only just', detail: 'Line up the faded photo more closely next time.', note, primary: done, secondary: again, from });
+      await opening;
+      closeCamera();
+      verdictReady = true;
     } catch (e) {
       $('cam-msg').textContent = e.message;
       camUi('shot');
     }
+  }
+
+  // ---------- verdict: the full-screen answer to a check-in or a test ----------
+
+  const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let verdictPrimary = null; // { label, run } for the big button
+  let verdictSecondary = null; // the same for the text button under it, or null
+  let verdictTimer = null; // counts down the retake window on a failed check-in
+  let verdictReady = false; // buttons wait until the screen has finished growing and the camera is gone
+
+  // A failed photo's reason is stored one point per line; an older one-sentence reason is one point.
+  const pointsOf = (reason) => String(reason || '').split('\n').map((p) => p.trim()).filter(Boolean);
+
+  function fillPoints(list, points) {
+    list.replaceChildren(...points.map((p) => el('li', { textContent: p })));
+    list.hidden = points.length === 0;
+  }
+
+  // "4:12", "0:38"
+  function spare(ms) {
+    const t = Math.max(0, Math.round(ms / 1000));
+    return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+  }
+
+  function setVerdictButtons(primary, secondary) {
+    verdictPrimary = primary;
+    verdictSecondary = secondary;
+    $('verdict-primary').textContent = primary.label;
+    $('verdict-secondary').hidden = !secondary;
+    $('verdict-secondary').textContent = secondary ? secondary.label : '';
+  }
+
+  $('verdict-primary').onclick = () => verdictReady && verdictPrimary?.run();
+  $('verdict-secondary').onclick = () => verdictReady && verdictSecondary?.run();
+
+  // kind: 'pass', 'fail' or 'error'. ceremony: the real thing passed, so the clock face celebrates.
+  // The screen grows as a circle out of `from`, the button that sent the photo. Resolves once it covers the screen.
+  function openVerdict({ kind, ceremony = false, title, detail = '', points = [], note = '', primary, secondary = null, from }) {
+    const box = $('verdict');
+    clearInterval(verdictTimer);
+    verdictTimer = null;
+    box.className = 'verdict ' + kind + (ceremony ? ' ceremony' : '');
+    $('verdict-title').textContent = title;
+    $('verdict-detail').textContent = detail;
+    $('verdict-detail').hidden = !detail;
+    fillPoints($('verdict-points'), points);
+    $('verdict-note').textContent = note;
+    setVerdictButtons(primary, secondary);
+    verdictReady = false;
+    box.hidden = false;
+    void box.offsetWidth; // restart the dial's animations
+    box.classList.add('play');
+    $('verdict-primary').focus({ preventScroll: true });
+    if (reducedMotion() || !box.animate) return Promise.resolve();
+    const rect = from?.getBoundingClientRect();
+    const x = rect?.width ? rect.left + rect.width / 2 : innerWidth / 2;
+    const y = rect?.height ? rect.top + rect.height / 2 : innerHeight / 2;
+    const r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+    return box
+      .animate({ clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${r}px at ${x}px ${y}px)`] }, { duration: 520, easing: 'cubic-bezier(0.2, 0, 0, 1)' })
+      .finished.catch(() => {});
+  }
+
+  function closeVerdict() {
+    clearInterval(verdictTimer);
+    verdictTimer = null;
+    $('verdict').hidden = true;
+    $('verdict').classList.remove('play');
+  }
+
+  // A check-in's answer. A pass ends the break; a fail leaves the retake window running.
+  async function showCheckin(r) {
+    const s = r.session;
+    const from = $('cam-use');
+    let shown;
+    if (r.verdict === 'pass') {
+      shown = openVerdict({
+        kind: 'pass',
+        ceremony: true,
+        title: 'Back on time',
+        detail: `Checked in at ${clock(s.first_photo_at, true)}, ${spare(Date.parse(s.deadline_at) - Date.parse(s.first_photo_at))} before the deadline.`,
+        note: 'Nothing charged.',
+        primary: { label: 'Done', run: closeVerdict },
+        from,
+      });
+    } else {
+      const where = state.references.length > 1 ? camRef.description : '';
+      shown = openVerdict({
+        kind: r.verdict === 'error' ? 'error' : 'fail',
+        title: r.verdict === 'error' ? "Couldn't check this photo" : 'Not a match',
+        detail: where ? 'Compared with ' + where : '',
+        points: r.points || [],
+        primary: {
+          label: 'Retake photo',
+          run: async () => {
+            await refreshing; // the retake needs the break as it is now, clock stopped
+            closeVerdict();
+            if (state.active) pickAndShoot();
+          },
+        },
+        secondary: { label: 'Back to timer', run: closeVerdict },
+        from,
+      });
+      if (s.retake_until) watchRetake(Date.parse(s.retake_until));
+    }
+    // The camera goes once the answer covers it; then the screen underneath catches up.
+    await shown;
+    closeCamera();
+    verdictReady = true;
+    await refresh();
+  }
+
+  function watchRetake(until) {
+    const update = () => {
+      const left = until - serverNow();
+      if (left > 0) {
+        $('verdict-note').textContent = `${spare(left)} left to retake. Retakes don't count against you.`;
+        return;
+      }
+      clearInterval(verdictTimer);
+      verdictTimer = null;
+      $('verdict-note').textContent = 'Retake time is over.';
+      setVerdictButtons({ label: 'Done', run: closeVerdict }, null);
+    };
+    update();
+    verdictTimer = setInterval(update, 250);
   }
 
   // ---------- images ----------
@@ -1104,6 +1239,7 @@
     closeCardSheet();
     closeDescribe();
     closeRefMenu();
+    closeVerdict();
     $('ref-picker').hidden = true;
     wantSettings = false;
     state = null;
