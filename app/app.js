@@ -471,6 +471,12 @@
   $('ref-menu').onclick = (ev) => {
     if (ev.target === $('ref-menu')) closeRefMenu();
   };
+  // A practice run: the same camera, overlay and AI check as a real check-in, with no break and no money.
+  $('ref-menu-test').onclick = () => {
+    const ref = menuRef;
+    closeRefMenu();
+    openCamera('test', ref);
+  };
   $('ref-menu-view').onclick = () => {
     const ref = menuRef;
     closeRefMenu();
@@ -857,13 +863,14 @@
   // ---------- camera ----------
 
   let stream = null;
-  let camMode = null;
-  let camRef = null; // the photo a check-in is matched against
+  let camMode = null; // 'checkin', 'test' (a practice check-in) or 'reference'
+  let camRef = null; // the photo a check-in or a test is matched against
   let camSession = null; // the break this check-in camera was opened for; state.active may be gone by the time Use Photo is pressed
   let camStop = null; // the request that stops the clock at the shutter press (settled already if the clock is stopped)
   let shot = null;
   let ghostUrl = null; // the reference laid over the viewfinder, if any
   let camGuide = false; // whether reference thumbnails are offered in the viewfinder
+  let camPhase = 'live';
 
   async function openCamera(mode, ref = null) {
     camMode = mode;
@@ -872,7 +879,7 @@
     camStop = mode === 'checkin' && state.active.first_photo_at ? Promise.resolve() : null;
     shot = null;
     // A check-in starts with the picked photo laid over the view, to line up the same shot.
-    ghostUrl = mode === 'checkin' ? ref.url || null : null;
+    ghostUrl = ref ? ref.url || null : null;
     camGuide = !!ghostUrl;
     if (camGuide) {
       $('ghost').src = ghostUrl;
@@ -884,7 +891,9 @@
     $('cam-msg').textContent =
       mode === 'checkin'
         ? `${ref.description}: line up the faded photo, then shoot.`
-        : 'Pick an angle with art, furniture or signs in it. No people.';
+        : mode === 'test'
+          ? `Test run for ${ref.description}: the same AI check as a real check-in. Nothing is charged.`
+          : 'Pick an angle with art, furniture or signs in it. No people.';
     if (!navigator.mediaDevices?.getUserMedia) {
       $('cam-msg').textContent = "This page can't use the camera. Open it from an https address.";
       return;
@@ -919,8 +928,9 @@
     $('ghost').hidden = !ghostUrl || !$('still').hidden;
   }
 
-  // live: viewfinder · shot: reviewing the photo · busy: sending it
+  // live: viewfinder · shot: reviewing the photo · busy: sending it · result: a test's verdict is showing
   function camUi(phase) {
+    camPhase = phase;
     const live = phase === 'live';
     $('video').hidden = !live;
     $('ghost').hidden = !live || !ghostUrl;
@@ -933,6 +943,7 @@
     $('cam-use').hidden = live;
     $('cam-retake').disabled = phase === 'busy';
     $('cam-use').disabled = phase === 'busy';
+    $('cam-use').textContent = phase === 'result' ? 'Done' : 'Use Photo';
   }
 
   $('cam-shoot').onclick = () => {
@@ -962,12 +973,15 @@
 
   $('cam-retake').onclick = () => {
     shot = null;
+    $('cam-msg').textContent = '';
     camUi('live');
   };
 
   $('cam-cancel').onclick = closeCamera;
 
   $('cam-use').onclick = async () => {
+    if (camPhase === 'result') return closeCamera();
+    if (camMode === 'test') return testShot();
     if (camMode === 'reference') {
       const image = shot;
       closeCamera();
@@ -994,6 +1008,21 @@
       camUi('shot');
     }
   };
+
+  // Nothing is stored and no break is involved, so the verdict just shows over the photo.
+  async function testShot() {
+    camUi('busy');
+    $('cam-msg').textContent = 'The AI is checking. A few seconds…';
+    try {
+      const r = await cloud.api('POST', 'precheck', { reference_id: camRef.id, image: shot.split(',')[1] });
+      const head = r.verdict !== 'pass' ? '✗ This would fail.' : r.clear ? '✓ This would pass.' : '✓ This would pass, but only just. Line up the faded photo more closely.';
+      $('cam-msg').textContent = head + (r.reason ? ' ' + r.reason : '');
+      camUi('result');
+    } catch (e) {
+      $('cam-msg').textContent = e.message;
+      camUi('shot');
+    }
+  }
 
   // ---------- images ----------
 

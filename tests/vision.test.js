@@ -26,6 +26,12 @@ test('the same thing passes, and so does probably the same thing', () => {
   assert.equal(readVerdict(answer(good)).verdict, 'pass');
 });
 
+test('a pass says whether it was clear or only just', () => {
+  assert.equal(readVerdict(answer(good)).clear, true);
+  const borderline = readVerdict(answer({ ...good, same_scene: 1 }));
+  assert.deepEqual([borderline.verdict, borderline.clear], ['pass', false]);
+});
+
 test('only a different thing or place is rejected', () => {
   assert.equal(decide({ ...good, same_scene: 0 }), false);
   assert.equal(readVerdict(answer({ ...good, same_scene: 0 })).verdict, 'fail');
