@@ -12,10 +12,16 @@ export default route(['POST'], async () => {
   let voided = 0;
 
   const tasks = await rpc('be_claim_billing');
-  const stored = tasks.length
-    ? must(await db().from('charges').select('*').in('session_id', tasks.map((t) => t.session_id)), 'charges')
-    : [];
+  const ids = tasks.map((t) => t.session_id);
+  const [stored, breaks] = tasks.length
+    ? await Promise.all([
+        db().from('charges').select('*').in('session_id', ids).then((r) => must(r, 'charges')),
+        db().from('sessions').select('id, started_at, relax_ends_at').in('id', ids).then((r) => must(r, 'sessions')),
+      ])
+    : [[], []];
   for (const task of tasks) {
+    const b = breaks.find((x) => x.id === task.session_id);
+    task.relax_seconds = b ? Math.round((Date.parse(b.relax_ends_at) - Date.parse(b.started_at)) / 1000) : null;
     const mine = stored.filter((c) => c.session_id === task.session_id);
     task.charges = { hold: mine.find((c) => c.kind === 'hold'), fee: mine.find((c) => c.kind === 'fee') };
     const deps = {

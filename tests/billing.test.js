@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FEE_CENTS, HOLD_CENTS, chargeBreak, declinedNote, giveUp, releaseHold, voidDueAt } from '../lib/billing.js';
+import { FEE_CENTS, HOLD_CENTS, chargeBreak, declinedNote, descriptorSuffix, giveUp, releaseHold, voidDueAt } from '../lib/billing.js';
 
 const HOUR = 3600 * 1000;
 const T0 = Date.parse('2026-10-28T20:00:00Z');
@@ -58,6 +58,7 @@ function harness(outcomes, taskOverrides = {}) {
     billing_tries: 1,
     customer_id: 'cus_1',
     payment_method_id: 'pm_1',
+    relax_seconds: 3000,
     charges: {},
     ...taskOverrides,
   };
@@ -82,6 +83,8 @@ test('a failed break: the hold first, then the fee, both off-session with idempo
     [HOLD_CENTS, 'manual', true, true, 'be-hold-sess-1'],
   );
   assert.deepEqual([fee.kind, fee.params.amount, fee.params.capture_method, fee.opts.idempotencyKey], ['fee', FEE_CENTS, 'automatic', 'be-fee-sess-1']);
+  // The statement names the break's own length (50:00 here), on both charges.
+  assert.deepEqual([hold.params.statement_descriptor_suffix, fee.params.statement_descriptor_suffix], ['50:00 MISS', '50:00 MISS']);
   assert.equal(h.rows.hold.status, 'held');
   assert.equal(h.rows.hold.void_due_at.getTime(), T0 + (4 * 24 + 17) * HOUR);
   assert.equal(h.rows.fee.status, 'paid');
@@ -174,4 +177,12 @@ test('releasing a hold Stripe already canceled counts as released; other errors 
 
   const down = fakeStripe({ cancel: new Error('timeout') });
   await assert.rejects(releaseHold(down, 'pi_hold'), /timeout/);
+});
+
+test('the statement suffix is the break length: mm:ss, h:mm:ss from an hour, within 22 characters', () => {
+  assert.equal(descriptorSuffix(2725), '45:25 MISS');
+  assert.equal(descriptorSuffix(60), '01:00 MISS');
+  assert.equal(descriptorSuffix(5400), '1:30:00 MISS');
+  assert.ok(('BREAK* ' + descriptorSuffix(6 * 3600 - 1)).length <= 22);
+  assert.equal(descriptorSuffix(null), 'MISS');
 });
