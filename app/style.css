@@ -345,6 +345,21 @@ body[data-mode="alarm"] #arrived.btn-primary { background: var(--coral); color: 
   transition: transform 0.12s ease;
 }
 .dial-tap:active { transform: scale(0.97); }
+/* Says the time can be changed, without a second control on the home screen. */
+.dial-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  padding: 4px 12px 4px 10px;
+  border-radius: 999px;
+  background: rgba(138, 90, 34, 0.09);
+  color: var(--berry);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 700;
+}
+.dial-chip svg { width: 10px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .dial-tap:focus-visible { outline: 2px solid var(--berry); outline-offset: 4px; }
 .phase { font-size: 15px; line-height: 22px; font-weight: 700; color: var(--ink-2); }
 .dial.alarm .phase { color: var(--coral); }
@@ -727,7 +742,11 @@ body[data-mode="alarm"] #arrived.btn-primary { background: var(--coral); color: 
 .wheel {
   height: calc(var(--row) * 5);
   padding: calc(var(--row) * 2) 0;
+  /* Up and down only, like the Clock wheels: a slanted swipe must not drag the numbers sideways.
+     The tilted rows bulge a little wider than the wheel, which made it scrollable across. */
+  overflow-x: hidden;
   overflow-y: scroll;
+  touch-action: pan-y;
   scroll-snap-type: y mandatory;
   scrollbar-width: none;
   overscroll-behavior: contain;

@@ -307,7 +307,7 @@
       ? 'Add a check-in photo in Settings first.'
       : !state.card
         ? 'Add a card in Settings first.'
-        : "Tap the time to change it. Can't be cancelled once started.";
+        : "Can't be cancelled once started.";
     $('start-setup').hidden = hasRefs && !!state.card;
     // The last break failed and the bank refused the charge: say so here, where it is seen. Not a block.
     const declined = state.latest?.billing_status === 'declined' ? state.latest.billing_note : '';
