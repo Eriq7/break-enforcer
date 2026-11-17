@@ -95,10 +95,10 @@
       <svg class="ring" viewBox="0 0 200 200" aria-hidden="true">
         <circle class="ring-track" cx="100" cy="100" r="94"/>
       </svg>
-      <div class="dial-face">
+      <button class="dial-face dial-tap" id="hero-edit" type="button" aria-label="Change break length">
         <span class="timer" id="hero-time">45:25</span>
         <span class="dial-note" id="hero-sub"></span>
-      </div>
+      </button>
     </div>
     <button class="btn btn-primary btn-large" id="start" type="button">Start break</button>
     <p class="footnote centered" id="start-hint"></p>
@@ -247,6 +247,23 @@
     <h2 class="sheet-title" id="ref-picker-title">Where are you?</h2>
     <ul class="list picks" id="ref-picks"></ul>
     <button class="btn btn-gray" id="ref-picker-cancel" type="button">Cancel</button>
+  </div>
+</section>
+
+<section class="sheet" id="length-sheet" hidden>
+  <div class="sheet-card" role="dialog" aria-labelledby="length-title">
+    <h2 class="sheet-title" id="length-title">Break length</h2>
+    <div class="wheels">
+      <div class="wheel-band" aria-hidden="true"></div>
+      <div class="wheel-col"><div class="wheel" id="wheel-h" tabindex="0" aria-label="Hours"></div><span class="wheel-unit">hours</span></div>
+      <div class="wheel-col"><div class="wheel" id="wheel-m" tabindex="0" aria-label="Minutes"></div><span class="wheel-unit">min</span></div>
+      <div class="wheel-col"><div class="wheel" id="wheel-s" tabindex="0" aria-label="Seconds"></div><span class="wheel-unit">sec</span></div>
+    </div>
+    <p class="msg centered" id="length-msg" role="status"></p>
+    <div class="sheet-actions">
+      <button class="btn btn-primary" id="length-done" type="button">Done</button>
+      <button class="btn btn-gray" id="length-reset" type="button">Reset to 45:25</button>
+    </div>
   </div>
 </section>
 

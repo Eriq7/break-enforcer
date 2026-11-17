@@ -197,6 +197,7 @@
       wantSettings = false;
       $('describe-sheet').hidden = true;
       $('ref-menu').hidden = true;
+      $('length-sheet').hidden = true;
       renderSession();
       show('session');
       if (arriving) windUpRing();
@@ -223,11 +224,20 @@
 
   // ---------- formatting ----------
 
+  // 45:25, or 1:05:00 from an hour up.
   function mmss(ms) {
     const total = Math.max(0, Math.ceil(ms / 1000));
-    const m = Math.floor(total / 60);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
     const s = total % 60;
-    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    const tail = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    return h ? h + ':' + tail : tail;
+  }
+
+  // Puts a time on a dial, smaller when it has hours in it.
+  function showTime(node, ms) {
+    node.textContent = mmss(ms);
+    node.classList.toggle('long', ms > 3599 * 1000);
   }
 
   function clock(value, seconds = false) {
@@ -289,7 +299,7 @@
   // Just the dial and the start button. Everything else lives in Settings.
   function renderHome() {
     renderStartLabel();
-    $('hero-time').textContent = mmss(state.timing.relax * 1000);
+    showTime($('hero-time'), breakLength() * 1000);
     $('hero-sub').textContent = `then ${duration(state.timing.buffer)} to check in`;
     const hasRefs = state.references.length > 0;
     $('start').disabled = !hasRefs || !state.card;
@@ -297,7 +307,7 @@
       ? 'Add a check-in photo in Settings first.'
       : !state.card
         ? 'Add a card in Settings first.'
-        : "Can't be cancelled once started.";
+        : "Tap the time to change it. Can't be cancelled once started.";
     $('start-setup').hidden = hasRefs && !!state.card;
     // The last break failed and the bank refused the charge: say so here, where it is seen. Not a block.
     const declined = state.latest?.billing_status === 'declined' ? state.latest.billing_note : '';
@@ -343,7 +353,7 @@
     $('start').disabled = true;
     flash('home-msg', '');
     try {
-      const r = await cloud.api('POST', 'start');
+      const r = await cloud.api('POST', 'start', { relax_seconds: breakLength() });
       syncClock(r.server_now);
       await refresh();
     } catch (e) {
@@ -351,6 +361,131 @@
       renderStartLabel();
       $('start').disabled = false;
     }
+  };
+
+  // ---------- break length ----------
+
+  // Picked on three wheels like the iPhone Clock timer: tap the time on the dial. The pick stays on
+  // this phone and is sent with Start; the server checks the range. The default is the server's 45:25.
+  const LENGTH_KEY = 'be-break-length';
+  const ROW = 40; // one wheel row in px, --row in style.css
+  const WHEELS = [
+    { id: 'wheel-h', count: 6 }, // 0 to 5 hours
+    { id: 'wheel-m', count: 60 },
+    { id: 'wheel-s', count: 60 },
+  ];
+  let pickedLength = null; // this visit's pick, in case the phone won't store it
+
+  const lengthRange = () => [state.timing.relax_min ?? 60, state.timing.relax_max ?? 21599];
+
+  function breakLength() {
+    const [min, max] = lengthRange();
+    let n = pickedLength;
+    if (n == null) {
+      try {
+        n = Number(localStorage.getItem(LENGTH_KEY) || NaN);
+      } catch {
+        n = NaN;
+      }
+    }
+    return Number.isInteger(n) && n >= min && n <= max ? n : state.timing.relax;
+  }
+
+  function wheelValue(node, count) {
+    return Math.min(count - 1, Math.max(0, Math.round(node.scrollTop / ROW)));
+  }
+
+  function wheelTotal() {
+    const [h, m, s] = WHEELS.map((w) => wheelValue($(w.id), w.count));
+    return h * 3600 + m * 60 + s;
+  }
+
+  // Rows lean back and fade with their distance from the middle band, like a drum.
+  function tilt(node) {
+    const mid = node.scrollTop / ROW;
+    const rows = node.children;
+    for (let i = 0; i < rows.length; i++) {
+      const d = i - mid;
+      const far = Math.abs(d);
+      rows[i].style.opacity = far > 3 ? '0' : String(Math.max(0.25, 1 - far * 0.28));
+      rows[i].style.transform = far > 3 ? '' : `rotateX(${(-d * 22).toFixed(1)}deg)`;
+    }
+  }
+
+  function wheelChanged() {
+    const ok = wheelTotal() >= lengthRange()[0];
+    $('length-done').disabled = !ok;
+    flash('length-msg', ok ? '' : 'At least 1 minute.');
+  }
+
+  function buildWheels() {
+    for (const w of WHEELS) {
+      const node = $(w.id);
+      if (node.childElementCount) continue;
+      for (let i = 0; i < w.count; i++) node.append(el('div', { className: 'wheel-row', textContent: String(i) }));
+      let frame = 0;
+      node.addEventListener('scroll', () => {
+        if (frame) return;
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          tilt(node);
+          wheelChanged();
+        });
+      }, { passive: true });
+      // Tapping a row above or below the band rolls it in.
+      node.addEventListener('click', (e) => {
+        const row = e.target.closest('.wheel-row');
+        if (row) node.scrollTo({ top: Array.prototype.indexOf.call(node.children, row) * ROW, behavior: 'smooth' });
+      });
+      node.addEventListener('keydown', (e) => {
+        if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+        e.preventDefault();
+        node.scrollBy({ top: e.key === 'ArrowUp' ? -ROW : ROW, behavior: 'smooth' });
+      });
+    }
+  }
+
+  function setWheels(total, smooth = false) {
+    const parts = [Math.floor(total / 3600), Math.floor((total % 3600) / 60), total % 60];
+    WHEELS.forEach((w, i) => {
+      const node = $(w.id);
+      if (smooth) node.scrollTo({ top: parts[i] * ROW, behavior: 'smooth' });
+      else node.scrollTop = parts[i] * ROW;
+      tilt(node);
+    });
+    wheelChanged();
+  }
+
+  function closeLength() {
+    $('length-sheet').hidden = true;
+  }
+
+  $('hero-edit').onclick = () => {
+    buildWheels();
+    $('length-reset').textContent = 'Reset to ' + mmss(state.timing.relax * 1000);
+    $('length-sheet').hidden = false; // shown first: a hidden wheel can't be scrolled into place
+    setWheels(breakLength());
+  };
+
+  $('length-reset').onclick = () => setWheels(state.timing.relax, true);
+
+  $('length-done').onclick = () => {
+    const total = wheelTotal();
+    if (total < lengthRange()[0]) return;
+    pickedLength = total;
+    try {
+      if (total === state.timing.relax) localStorage.removeItem(LENGTH_KEY);
+      else localStorage.setItem(LENGTH_KEY, String(total));
+    } catch {
+      // Not stored: this visit still uses the pick.
+    }
+    closeLength();
+    renderHome();
+  };
+
+  // Tapping outside the card leaves the length as it was.
+  $('length-sheet').onclick = (e) => {
+    if (e.target === $('length-sheet')) closeLength();
   };
 
   // ---------- settings ----------
@@ -719,7 +854,7 @@
 
   function renderTelegram() {
     $('tg-connect').textContent = state.telegram ? 'Reconnect' : 'Connect';
-    $('tg-note').textContent = state.telegram ? 'Connected. Every 5 minutes from 25:00, and at 45:25.' : 'Messages every 5 minutes from 25:00, and at 45:25. Connect once.';
+    $('tg-note').textContent = state.telegram ? 'Connected. 20, 15, 10 and 5 minutes before a break ends, and when it ends.' : 'Messages 20, 15, 10 and 5 minutes before a break ends, and when it ends. Connect once.';
     if (tgOpening && state.telegram) {
       tgOpening = false;
       flash('tg-msg', 'Telegram connected', true);
@@ -857,7 +992,7 @@
     arrived.className = 'btn btn-large ' + button;
 
     $('phase-label').textContent = label;
-    timer.textContent = mmss(left);
+    showTime(timer, left);
     $('dial').classList.remove('alarm', 'stopped');
     if (mode) $('dial').classList.add(mode);
     $('dial-end').hidden = !ends || left <= 0;

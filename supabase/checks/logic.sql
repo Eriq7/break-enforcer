@@ -507,6 +507,7 @@ begin
   end;
   s := public.be_start_session(c, 2725, 300, 'test');
   if s.billing_mode is distinct from 'test' then failed := failed || ' break did not keep its mode;'; end if;
+  if s.countdown_sent <> 0 then failed := failed || ' 45:25 break skipped countdown marks;'; end if;
 
   -- The card is locked during a break.
   begin
@@ -529,6 +530,12 @@ begin
   exception when others then
     if sqlerrm <> 'card_locked' then failed := failed || ' card_locked(due)? ' || sqlerrm || ';'; end if;
   end;
+
+  -- A 12 minute break starts past the 20 and 15 minute marks: those count as sent, the 10 and 5 don't.
+  s2 := public.be_start_session(c, 720, 300, 'test');
+  if s2.countdown_sent <> 2 then failed := failed || ' 12 minute break countdown_sent ' || s2.countdown_sent || ';'; end if;
+  if s2.relax_ends_at - s2.started_at <> interval '12 minutes' then failed := failed || ' 12 minute break length;'; end if;
+  update public.sessions set status = 'passed' where id = s2.id;
 
   -- Excused breaks, and breaks from before payments, are never due.
   insert into public.sessions (user_id, started_at, relax_ends_at, deadline_at, first_photo_at, retake_until, billing_mode)

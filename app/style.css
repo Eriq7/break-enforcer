@@ -330,6 +330,22 @@ body[data-mode="alarm"] #arrived.btn-primary { background: var(--coral); color: 
   letter-spacing: -0.02em;
   color: var(--ink);
 }
+/* An hour or longer reads h:mm:ss, two more digits than mm:ss. */
+.timer.long { font-size: min(13vw, 52px); }
+/* On the home screen the time is a button: tap it to pick the break length. */
+.dial-tap {
+  margin: 10%;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.dial-tap:active { transform: scale(0.97); }
+.dial-tap:focus-visible { outline: 2px solid var(--berry); outline-offset: 4px; }
 .phase { font-size: 15px; line-height: 22px; font-weight: 700; color: var(--ink-2); }
 .dial.alarm .phase { color: var(--coral); }
 .dial.stopped .phase { color: #2F5E44; }
@@ -688,6 +704,65 @@ body[data-mode="alarm"] #arrived.btn-primary { background: var(--coral); color: 
 .sheet-title { margin: 0 4px 16px; font-size: 20px; line-height: 26px; font-weight: 700; }
 .sheet .fields { background: var(--paper); }
 .sheet-note { margin: -8px 4px 16px; font-size: 15px; line-height: 22px; color: var(--ink-2); }
+/* The break length picker: three wheels like the iPhone Clock timer. Each wheel scrolls and snaps
+   row by row; app.js tilts and fades the rows by their distance from the middle band. */
+.wheels {
+  --row: 40px;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  height: calc(var(--row) * 5);
+  margin: 4px 0 4px;
+  overflow: hidden;
+}
+.wheel-band {
+  position: absolute;
+  inset: calc(var(--row) * 2) 0 auto;
+  height: var(--row);
+  border-radius: 10px;
+  background: var(--fill);
+  pointer-events: none;
+}
+.wheel-col { position: relative; }
+.wheel {
+  height: calc(var(--row) * 5);
+  padding: calc(var(--row) * 2) 0;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+  perspective: 400px;
+  outline: none;
+  -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
+  mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
+}
+.wheel::-webkit-scrollbar { display: none; }
+.wheel-row {
+  height: var(--row);
+  padding-right: 52px;
+  scroll-snap-align: center;
+  font-family: var(--nums);
+  font-size: 23px;
+  line-height: var(--row);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--ink);
+  transform-origin: 50% 50%;
+  will-change: transform, opacity;
+}
+.wheel-unit {
+  position: absolute;
+  top: calc(var(--row) * 2);
+  right: 0;
+  width: 48px;
+  font-size: 15px;
+  line-height: var(--row);
+  font-weight: 700;
+  color: var(--ink-2);
+  pointer-events: none;
+}
+.wheel:focus-visible + .wheel-unit { color: var(--berry); }
+
 /* Stripe's card form draws itself inside this box. */
 .card-form { min-height: 120px; }
 .sheet-actions { display: grid; gap: 10px; margin-top: 8px; }
